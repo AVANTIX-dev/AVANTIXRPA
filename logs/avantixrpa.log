@@ -558,3 +558,23 @@ OSError: [WinError 193] %1 は有効な Win32 アプリケーションではあ�
 2025-12-02 13:02:32,633 [INFO] avantixrpa.engine - Step 4: ui.scroll (on_error=stop)
 2025-12-02 13:02:32,736 [INFO] avantixrpa.engine - Step 4 completed: ui.scroll
 2025-12-02 13:02:32,737 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 17:07:37,737 [INFO] avantixrpa.engine - Start flow: ぱいせえええええええええん (on_error=stop)
+2025-12-02 17:07:37,738 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-02 17:07:37,818 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-02 17:07:37,819 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-02 17:07:39,996 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-02 17:07:39,997 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-02 17:07:41,998 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-02 17:07:41,999 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-12-02 17:07:42,107 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-12-02 17:07:42,108 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 17:15:35,589 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - Open portal from resources (on_error=stop)
+2025-12-02 17:15:35,590 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-12-02 17:15:35,590 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-12-02 17:15:35,591 [INFO] avantixrpa.engine - Step 2: resource.open_site (on_error=stop)
+2025-12-02 17:15:35,652 [INFO] avantixrpa.engine - Step 2 completed: resource.open_site
+2025-12-02 17:15:35,653 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-02 17:15:36,655 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-02 17:15:36,655 [INFO] avantixrpa.engine - Step 4: print (on_error=stop)
+2025-12-02 17:15:36,656 [INFO] avantixrpa.engine - Step 4 completed: print
+2025-12-02 17:15:36,656 [INFO] avantixrpa.engine - Flow finished

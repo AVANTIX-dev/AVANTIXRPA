@@ -1,21 +1,17 @@
 name: AVANTIXRPA - Open portal from resources
 on_error: stop
-
 steps:
-  - action: print
-    params:
-      prefix: "[AVANTIXRPA]"
-      message: "resources.json に登録されたサイトを開きます。（example_portal）"
-
-  - action: resource.open_site
-    params:
-      key: "google"
-
-  - action: wait
-    params:
-      seconds: 1
-
-  - action: print
-    params:
-      prefix: "[AVANTIXRPA]"
-      message: "ポータル起動フローが完了しました。"
+- action: print
+  params:
+    prefix: '[AVANTIXRPA]'
+    message: resources.json に登録されたサイトを開きます。（example_portal）
+- action: resource.open_site
+  params:
+    key: google
+- action: wait
+  params:
+    seconds: 1
+- action: print
+  params:
+    prefix: '[AVANTIXRPA]'
+    message: ポータル起動フローが完了しました。

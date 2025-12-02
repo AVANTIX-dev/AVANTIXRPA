@@ -15,7 +15,7 @@ import unicodedata
 
 
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 
 # --- Drag & Drop 用 (あれば使う / なければ無効化) ---
 try:
@@ -731,7 +731,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
-        # ★ notebook と各タブをインスタンス変数で持つ
+        # ★ Notebook とタブをインスタンス変数で保持しておく
         self.notebook = ttk.Notebook(self)
         self.notebook.grid(row=0, column=0, sticky="nsew")
 
@@ -773,6 +773,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         left_frame.rowconfigure(1, weight=1)
         left_frame.rowconfigure(2, weight=0)
         left_frame.rowconfigure(3, weight=0)
+        left_frame.rowconfigure(4, weight=0)
         left_frame.columnconfigure(0, weight=1)
 
         lbl_flows = ttk.Label(left_frame, text="フロー一覧（RPA名）")
@@ -785,7 +786,21 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         scrollbar.grid(row=1, column=1, sticky="ns")
         self.flows_listbox.config(yscrollcommand=scrollbar.set)
 
+        # ダブルクリックで実行
         self.flows_listbox.bind("<Double-Button-1>", self._on_flow_double_click)
+
+        # ★ 右クリック用コンテキストメニュー
+        self.flow_list_menu = tk.Menu(self, tearoff=0)
+        self.flow_list_menu.add_command(label="フローを実行", command=self._on_run_clicked)
+        self.flow_list_menu.add_command(label="編集（フローエディタで開く）", command=self._on_edit_flow_from_list)
+        self.flow_list_menu.add_separator()
+        self.flow_list_menu.add_command(label="削除", command=self._on_delete_flow)
+        self.flow_list_menu.add_separator()
+        self.flow_list_menu.add_command(label="名前変更...", command=self._on_rename_flow)
+        self.flow_list_menu.add_command(label="複製して新規フローを作成", command=self._on_duplicate_flow)
+
+        # ★ 右クリックでコンテキストメニューを表示
+        self.flows_listbox.bind("<Button-3>", self._on_flows_listbox_right_click)
 
         delete_btn = ttk.Button(left_frame, text="選択フロー削除", command=self._on_delete_flow)
         delete_btn.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 0))
@@ -793,6 +808,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         restore_btn = ttk.Button(left_frame, text="削除したフローを復元...", command=self._open_trash_manager)
         restore_btn.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(4, 0))
 
+        # ★ おまけ：ボタンでも編集できるようにしておく
         edit_btn = ttk.Button(left_frame, text="選択フローを編集（エディタ）", command=self._on_edit_flow_from_list)
         edit_btn.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
 
@@ -966,7 +982,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         bottom_frame.columnconfigure(0, weight=0)
         bottom_frame.columnconfigure(1, weight=0)
         bottom_frame.columnconfigure(2, weight=0)
-        bottom_frame.columnconfigure(3, weight=1)
+        bottom_frame.columnconfigure(3, weight=1)  # 右側を余白で伸ばす
 
         # ★ 新しいフロー作成
         ttk.Button(bottom_frame, text="新しいフロー", command=self._editor_new_flow).grid(
@@ -978,9 +994,14 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             row=0, column=1, sticky="w", padx=4
         )
 
-        # 既存の「フローを保存」ボタン（位置だけ右寄りに）
+        # ★ フローを保存
         ttk.Button(bottom_frame, text="フローを保存", command=self._editor_save_flow).grid(
             row=0, column=2, sticky="w", padx=4
+        )
+
+        # ★ 今開いているフローを実行
+        ttk.Button(bottom_frame, text="このフローを実行", command=self._editor_run_flow).grid(
+            row=0, column=3, sticky="w", padx=4
         )
 
         ttk.Label(bottom_frame, text="※ flows フォルダに YAML として保存されます").grid(
@@ -1028,6 +1049,34 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
     def _on_flow_double_click(self, event) -> None:
         self._on_run_clicked()
 
+    def _on_edit_flow_from_list(self) -> None:
+        """フロー一覧で選択中のフローを、フローエディタタブで開く。"""
+        selection = self.flows_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("フロー未選択", "編集するフローを一覧から選択してください。")
+            return
+
+        idx = selection[0]
+        if idx >= len(self._flow_entries):
+            messagebox.showerror("エラー", "内部のフロー一覧と表示がずれています。")
+            return
+
+        entry = self._flow_entries[idx]
+        flow_path: Path = entry["file"]
+
+        if not flow_path.exists():
+            messagebox.showerror("ファイルなし", f"フローファイルが見つかりません:\n{flow_path}")
+            return
+
+        # 実際の読み込みロジックに委譲
+        self._editor_load_from_path(flow_path)
+
+        # エディタタブに切り替え
+        try:
+            self.notebook.select(self.editor_tab)
+        except Exception:
+            pass
+
     def _on_run_clicked(self) -> None:
         if self._running_thread and self._running_thread.is_alive():
             messagebox.showinfo("実行中", "現在フロー実行中です。完了をお待ちください。")
@@ -1065,6 +1114,26 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         self._running_thread = t
         t.start()
 
+    def _on_flows_listbox_right_click(self, event) -> None:
+        """フロー一覧の右クリックでコンテキストメニューを出す。"""
+        if self.flows_listbox.size() == 0:
+            return
+
+        # マウス位置に最も近い行インデックスを取得
+        index = self.flows_listbox.nearest(event.y)
+        if index < 0:
+            return
+
+        # その行を選択状態にする
+        self.flows_listbox.selection_clear(0, tk.END)
+        self.flows_listbox.selection_set(index)
+        self.flows_listbox.activate(index)
+
+        try:
+            self.flow_list_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.flow_list_menu.grab_release()
+
     def _on_edit_flow_from_list(self) -> None:
         """フロー一覧で選択中のフローを、エディタタブで編集する。"""
         selection = self.flows_listbox.curselection()
@@ -1093,6 +1162,166 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         except Exception:
             # notebook がまだ無いとかは普通起きないけど、一応握りつぶす
             pass
+
+    def _on_rename_flow(self) -> None:
+        """選択中のフローの name とファイル名をまとめて変更する。"""
+        selection = self.flows_listbox.curselection()
+        if not selection:
+            messagebox.showinfo("フロー未選択", "名前を変更するフローを一覧から選択してください。")
+            return
+
+        idx = selection[0]
+        if idx >= len(self._flow_entries):
+            messagebox.showerror("エラー", "内部データと表示がずれています。")
+            return
+
+        entry = self._flow_entries[idx]
+        old_name: str = entry["name"]
+        old_path: Path = entry["file"]
+
+        if not old_path.exists():
+            messagebox.showerror("ファイルなし", f"フローファイルが見つかりません:\n{old_path}")
+            return
+
+        # 新しいフロー名を聞く
+        new_name = simpledialog.askstring(
+            "フロー名の変更",
+            f"現在のフロー名:\n  {old_name}\n\n新しいフロー名を入力してください。",
+            initialvalue=old_name,
+            parent=self,
+        )
+        if new_name is None:
+            # キャンセル
+            return
+
+        new_name = new_name.strip()
+        if not new_name:
+            messagebox.showwarning("名前が空です", "フロー名を入力してください。")
+            return
+
+        # フロー名からファイル名を生成
+        safe_name = "".join(c if c.isalnum() or c in "-_ " else "_" for c in new_name).strip()
+        safe_name = safe_name.replace(" ", "_")
+        if not safe_name:
+            safe_name = "flow"
+
+        new_path = FLOWS_DIR / f"{safe_name}.yaml"
+
+        # 既に別のファイルがある場合は拒否
+        if new_path != old_path and new_path.exists():
+            messagebox.showerror(
+                "既に存在します",
+                f"別のフローが同じファイル名を使用しています:\n{new_path.name}\n\n別の名前を指定してください。",
+            )
+            return
+
+        # YAML を読み込んで name だけ差し替えつつ、新しいパスに保存
+        try:
+            with old_path.open("r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            if not isinstance(data, dict):
+                data = {}
+
+            data["name"] = new_name
+
+            with new_path.open("w", encoding="utf-8") as f:
+                yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+            # パスが変わっているなら元ファイルを削除（実質 rename）
+            if new_path != old_path and old_path.exists():
+                old_path.unlink()
+
+        except Exception as exc:
+            messagebox.showerror("名前変更エラー", f"フロー名の変更に失敗しました。\n{exc}")
+            return
+
+        # 一覧を再読み込み
+        self._load_flows_list()
+        self.status_label.config(text=f"フロー名を変更しました: {new_name}")
+
+    def _on_duplicate_flow(self) -> None:
+        """選択中のフローを複製して、新しいフローとして保存＆エディタで開く。"""
+        selection = self.flows_listbox.curselection()
+        if not selection:
+            messagebox.showinfo("フロー未選択", "複製するフローを一覧から選択してください。")
+            return
+
+        idx = selection[0]
+        if idx >= len(self._flow_entries):
+            messagebox.showerror("エラー", "内部データと表示がずれています。")
+            return
+
+        entry = self._flow_entries[idx]
+        old_name: str = entry["name"]
+        old_path: Path = entry["file"]
+
+        if not old_path.exists():
+            messagebox.showerror("ファイルなし", f"フローファイルが見つかりません:\n{old_path}")
+            return
+
+        # 新しいフロー名の候補（デフォルトは「〇〇（コピー）」）
+        default_new_name = f"{old_name}（コピー）" if old_name else "新しいフロー"
+
+        new_name = simpledialog.askstring(
+            "フローを複製",
+            f"元のフロー名:\n  {old_name}\n\n複製後のフロー名を入力してください。",
+            initialvalue=default_new_name,
+            parent=self,
+        )
+        if new_name is None:
+            # キャンセル
+            return
+
+        new_name = new_name.strip()
+        if not new_name:
+            messagebox.showwarning("名前が空です", "フロー名を入力してください。")
+            return
+
+        # フロー名からベースとなるファイル名を生成
+        base_safe_name = "".join(c if c.isalnum() or c in "-_ " else "_" for c in new_name).strip()
+        base_safe_name = base_safe_name.replace(" ", "_")
+        if not base_safe_name:
+            base_safe_name = "flow"
+
+        # 同名ファイルがすでにある場合は _2, _3… とずらす
+        candidate = base_safe_name
+        i = 2
+        while True:
+            candidate_path = FLOWS_DIR / f"{candidate}.yaml"
+            if not candidate_path.exists():
+                new_path = candidate_path
+                break
+            candidate = f"{base_safe_name}_{i}"
+            i += 1
+
+        # 元の YAML を読み込んで、name だけ差し替えて新パスに保存
+        try:
+            with old_path.open("r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            if not isinstance(data, dict):
+                data = {}
+
+            data["name"] = new_name
+
+            with new_path.open("w", encoding="utf-8") as f:
+                yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+        except Exception as exc:
+            messagebox.showerror("複製エラー", f"フローの複製に失敗しました。\n{exc}")
+            return
+
+        # 一覧を更新
+        self._load_flows_list()
+
+        # せっかくなので、複製したフローをエディタで即開く
+        try:
+            self._editor_load_from_path(new_path)
+            self.notebook.select(self.editor_tab)
+        except Exception:
+            # エディタ側で何か死んでもアプリ全体が落ちないようにする
+            pass
+
+        self.status_label.config(text=f"フローを複製しました: {new_name}")
 
     def _run_flow_thread(self, flow_path: Path, flow_name: str) -> None:
         try:
@@ -1613,6 +1842,40 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
         self.status_label.config(text=f"フローを読み込みました: {path.name}")
 
+    def _editor_load_from_path(self, path: Path) -> None:
+        """指定された YAML フローを読み込み、フローエディタに反映する。"""
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+        except Exception as exc:
+            messagebox.showerror("読み込み失敗", f"フローの読み込みに失敗しました。\n{exc}")
+            return
+
+        if not isinstance(data, dict):
+            messagebox.showerror("形式エラー", "フローファイルの形式が不正です。")
+            return
+
+        name = data.get("name", "") or ""
+        on_error = data.get("on_error", "stop") or "stop"
+        steps_raw = data.get("steps") or []
+
+        if not isinstance(steps_raw, list):
+            messagebox.showerror("形式エラー", "steps が配列ではありません。このフローは編集できません。")
+            return
+
+        # 不正な要素を落として、辞書だけにしておく
+        steps: List[Dict[str, Any]] = [s for s in steps_raw if isinstance(s, dict)]
+
+        self.edit_flow_name_var.set(name)
+        self.edit_on_error_var.set(on_error)
+        self.edit_steps = steps
+        self._refresh_edit_steps_list()
+
+        # 以後「保存」したときはこのファイルに上書き
+        self.current_edit_flow_path = path
+
+        self.status_label.config(text=f"フローを読み込みました: {path.name}")
+
     def _refresh_edit_steps_list(self) -> None:
         self.edit_steps_list.delete(0, tk.END)
         for i, step in enumerate(self.edit_steps, start=1):
@@ -1713,12 +1976,12 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
         FLOWS_DIR.mkdir(parents=True, exist_ok=True)
 
-        # ★ ここで新規か既存かを判定
+        # ★ 新規作成か、既存フローの上書きかを判定
         if self.current_edit_flow_path is not None:
             # 既存フロー編集 → そのファイルに上書き
             path = self.current_edit_flow_path
         else:
-            # 新規フロー → フロー名からファイル名を作成
+            # 新規フロー → フロー名からファイル名を生成
             safe_name = "".join(c if c.isalnum() or c in "-_ " else "_" for c in name).strip()
             safe_name = safe_name.replace(" ", "_")
             if not safe_name:
@@ -1740,12 +2003,65 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             messagebox.showerror("保存エラー", f"フローの保存に失敗しました。\n{exc}")
             return
 
-        # 新規保存だった場合も、以後はこのファイルを「編集中」として扱う
+        # 新規保存だった場合も、以後はこのファイルを「編集中」とみなす
         self.current_edit_flow_path = path
 
         messagebox.showinfo("保存完了", f"フローを保存しました。\n{path}")
         self.status_label.config(text=f"フローを保存しました: {path.name}")
         self._load_flows_list()
+
+    def _editor_run_flow(self) -> None:
+        """フローエディタで開いているフローを保存してから実行する。"""
+        # すでに実行中なら弾く（フロー一覧の実行ボタンと同じルール）
+        if self._running_thread and self._running_thread.is_alive():
+            messagebox.showinfo("実行中", "現在フロー実行中です。完了をお待ちください。")
+            return
+
+        # まず保存されているかチェック
+        if self.current_edit_flow_path is None:
+            # まだ一度も保存していないフロー
+            if not messagebox.askyesno(
+                "保存されていません",
+                "このフローはまだファイルに保存されていません。\n"
+                "保存してから実行しますか？",
+            ):
+                return
+
+            # 保存実行（失敗したりユーザーがキャンセルしたら current_edit_flow_path は None のまま）
+            self._editor_save_flow()
+            if self.current_edit_flow_path is None:
+                # 保存失敗 or キャンセル
+                return
+
+        flow_path = self.current_edit_flow_path
+        assert flow_path is not None  # 型的なおまじない
+
+        if not flow_path.exists():
+            messagebox.showerror("ファイルなし", f"フローファイルが見つかりません: {flow_path}")
+            return
+
+        flow_name = self.edit_flow_name_var.get().strip() or flow_path.stem
+
+        # ステータス＆ログ出力
+        self.status_label.config(text=f"フロー実行中: {flow_name}")
+        self._append_log(f"[RUN] {flow_name} ({flow_path.name})")
+
+        # 実行中はメイン画面側の実行ボタンをロック
+        try:
+            self.run_button.config(state="disabled")
+            self.reload_button.config(state="disabled")
+        except Exception:
+            # 念のため。エディタからだけ使うケースとかでも落ちないように。
+            pass
+
+        # いつもの実行スレッドに丸投げ
+        t = threading.Thread(
+            target=self._run_flow_thread,
+            args=(flow_path, flow_name),
+            daemon=True,
+        )
+        self._running_thread = t
+        t.start()
 
     def _open_coord_capture(self) -> None:
         CoordinateCapture(self)
