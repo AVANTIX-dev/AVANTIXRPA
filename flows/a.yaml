@@ -1,0 +1,12 @@
+name: a
+on_error: stop
+steps:
+- action: browser.open
+  params:
+    url: https://www.google.com
+- action: browser.open
+  params:
+    url: https://www.google.com
+- action: browser.open
+  params:
+    url: https://www.google.com

@@ -1,0 +1,7 @@
+name: scan
+on_error: stop
+steps:
+- action: run.program
+  params:
+    program: C:/Users/Public/Desktop/Canon MP Navigator EX 4.0.lnk
+  on_error: stop

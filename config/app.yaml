@@ -1,0 +1,6 @@
+# User-level configuration overrides for AVANTIXRPA.
+# You can leave this file as-is to use defaults.
+
+# Example:
+# logging:
+#   level: DEBUG

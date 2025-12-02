@@ -1,0 +1,21 @@
+name: AVANTIXRPA - Open daily report from resources
+on_error: stop
+
+steps:
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "resources.json に登録されたファイル（sample_excel）を開きます。"
+
+  - action: resource.open_file
+    params:
+      key: "sample_excel"
+
+  - action: wait
+    params:
+      seconds: 2
+
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "ファイルオープンフローが完了しました。"

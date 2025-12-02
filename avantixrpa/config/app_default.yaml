@@ -1,0 +1,9 @@
+# Default application configuration for AVANTIXRPA.
+# Values here can be overridden by config/app.yaml at the project root.
+
+logging:
+  level: INFO
+  file: logs/avantixrpa.log
+
+engine:
+  default_timeout_seconds: 30

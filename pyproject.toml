@@ -1,0 +1,9 @@
+[project]
+name = "avantixrpa"
+version = "0.1.0"
+description = "Minimal RPA engine scaffold"
+requires-python = ">=3.10"
+dependencies = ["pyyaml"]
+
+[project.scripts]
+avantixrpa = "avantixrpa.cli.main:main"

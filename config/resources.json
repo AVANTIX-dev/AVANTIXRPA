@@ -1,0 +1,21 @@
+{
+  "sites": {
+    "google": {
+      "label": "Google",
+      "url": "https://www.google.com"
+    },
+    "パイセンのチャンネル": {
+      "label": "パイセンのチャンネル",
+      "url": "https://www.youtube.com/@fledge565"
+    },
+    "paisen_channel": {
+      "label": "パイセンのチャンネル",
+      "url": "https://www.youtube.com/@fledge565"
+    },
+    "chatgpt": {
+      "label": "ChatGPT",
+      "url": "https://chatgpt.com"
+    }
+  },
+  "files": {}
+}

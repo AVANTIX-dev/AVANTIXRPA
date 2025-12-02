@@ -1,0 +1,16 @@
+name: パイセンのチャンネル
+on_error: stop
+
+steps:
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "リソースサイト 'パイセンのチャンネル' を開きます。"
+
+  - action: resource.open_site
+    params:
+      key: "パイセンのチャンネル"
+
+  - action: wait
+    params:
+      seconds: 1.0

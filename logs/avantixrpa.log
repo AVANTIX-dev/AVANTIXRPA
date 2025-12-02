@@ -1,0 +1,560 @@
+2025-11-28 16:32:40,060 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - Log backup sample
+2025-11-28 16:32:40,061 [INFO] avantixrpa.engine - Step 1: print
+2025-11-28 16:32:40,061 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 16:32:40,061 [INFO] avantixrpa.engine - Step 2: file.copy
+2025-11-28 16:32:40,066 [INFO] avantixrpa.engine - Step 2 completed: file.copy
+2025-11-28 16:32:40,067 [INFO] avantixrpa.engine - Step 3: print
+2025-11-28 16:32:40,067 [INFO] avantixrpa.engine - Step 3 completed: print
+2025-11-28 16:32:40,067 [INFO] avantixrpa.engine - Flow finished
+2025-11-28 16:44:10,784 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - Open browser sample
+2025-11-28 16:44:10,784 [INFO] avantixrpa.engine - Step 1: print
+2025-11-28 16:44:10,784 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 16:44:10,784 [INFO] avantixrpa.engine - Step 2: browser.open
+2025-11-28 16:44:10,873 [INFO] avantixrpa.engine - Step 2 completed: browser.open
+2025-11-28 16:44:10,874 [INFO] avantixrpa.engine - Step 3: wait
+2025-11-28 16:44:12,875 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-11-28 16:44:12,877 [INFO] avantixrpa.engine - Step 4: print
+2025-11-28 16:44:12,879 [INFO] avantixrpa.engine - Step 4 completed: print
+2025-11-28 16:44:12,880 [INFO] avantixrpa.engine - Flow finished
+2025-11-28 16:46:35,606 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - Error handling test (on_error=stop)
+2025-11-28 16:46:35,606 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-11-28 16:46:35,607 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 16:46:35,607 [INFO] avantixrpa.engine - Step 2: file.copy (on_error=stop)
+2025-11-28 16:46:35,608 [ERROR] avantixrpa.engine - Step 2 failed: [WinError 2] 指定されたファイルが見つかりません。
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\file_actions.py", line 22, in execute
+    shutil.copy2(src_path, dst_path)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\shutil.py", line 453, in copy2
+    _winapi.CopyFile2(src_, dst_, flags)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 指定されたファイルが見つかりません。
+2025-11-28 16:48:26,550 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - Error handling test (on_error=continue)
+2025-11-28 16:48:26,551 [INFO] avantixrpa.engine - Step 1: print (on_error=continue)
+2025-11-28 16:48:26,551 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 16:48:26,551 [INFO] avantixrpa.engine - Step 2: file.copy (on_error=continue)
+2025-11-28 16:48:26,552 [ERROR] avantixrpa.engine - Step 2 failed: [WinError 2] 指定されたファイルが見つかりません。
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\file_actions.py", line 22, in execute
+    shutil.copy2(src_path, dst_path)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\shutil.py", line 453, in copy2
+    _winapi.CopyFile2(src_, dst_, flags)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 指定されたファイルが見つかりません。
+2025-11-28 16:48:26,557 [INFO] avantixrpa.engine - Step 3: print (on_error=continue)
+2025-11-28 16:48:26,557 [INFO] avantixrpa.engine - Step 3 completed: print
+2025-11-28 16:48:26,557 [INFO] avantixrpa.engine - Flow finished
+2025-11-28 16:49:04,967 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - Error handling per step (on_error=stop)
+2025-11-28 16:49:04,967 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-11-28 16:49:04,967 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 16:49:04,967 [INFO] avantixrpa.engine - Step 2: file.copy (on_error=continue)
+2025-11-28 16:49:04,968 [ERROR] avantixrpa.engine - Step 2 failed: [WinError 2] 指定されたファイルが見つかりません。
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\file_actions.py", line 22, in execute
+    shutil.copy2(src_path, dst_path)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\shutil.py", line 453, in copy2
+    _winapi.CopyFile2(src_, dst_, flags)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 指定されたファイルが見つかりません。
+2025-11-28 16:49:04,973 [INFO] avantixrpa.engine - Step 3: print (on_error=stop)
+2025-11-28 16:49:04,974 [INFO] avantixrpa.engine - Step 3 completed: print
+2025-11-28 16:49:04,975 [INFO] avantixrpa.engine - Step 4: file.copy (on_error=stop)
+2025-11-28 16:49:04,977 [ERROR] avantixrpa.engine - Step 4 failed: [WinError 2] 指定されたファイルが見つかりません。
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\file_actions.py", line 22, in execute
+    shutil.copy2(src_path, dst_path)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\shutil.py", line 453, in copy2
+    _winapi.CopyFile2(src_, dst_, flags)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 指定されたファイルが見つかりません。
+2025-11-28 17:00:28,759 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - UI Notepad typing test (on_error=stop)
+2025-11-28 17:00:28,760 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-11-28 17:00:28,760 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 17:00:28,760 [INFO] avantixrpa.engine - Step 2: run.program (on_error=stop)
+2025-11-28 17:00:28,769 [INFO] avantixrpa.engine - Step 2 completed: run.program
+2025-11-28 17:00:28,770 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-11-28 17:00:30,270 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-11-28 17:00:30,271 [INFO] avantixrpa.engine - Step 4: ui.type (on_error=stop)
+2025-11-28 17:00:31,509 [INFO] avantixrpa.engine - Step 4 completed: ui.type
+2025-11-28 17:00:31,510 [INFO] avantixrpa.engine - Step 5: wait (on_error=stop)
+2025-11-28 17:00:32,011 [INFO] avantixrpa.engine - Step 5 completed: wait
+2025-11-28 17:00:32,012 [INFO] avantixrpa.engine - Step 6: ui.hotkey (on_error=stop)
+2025-11-28 17:00:32,115 [INFO] avantixrpa.engine - Step 6 completed: ui.hotkey
+2025-11-28 17:00:32,116 [INFO] avantixrpa.engine - Step 7: ui.type (on_error=stop)
+2025-11-28 17:00:33,226 [INFO] avantixrpa.engine - Step 7 completed: ui.type
+2025-11-28 17:00:33,227 [INFO] avantixrpa.engine - Flow finished
+2025-11-28 17:03:12,718 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - UI Notepad typing test (on_error=stop)
+2025-11-28 17:03:12,719 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-11-28 17:03:12,720 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 17:03:12,720 [INFO] avantixrpa.engine - Step 2: run.program (on_error=stop)
+2025-11-28 17:03:12,733 [INFO] avantixrpa.engine - Step 2 completed: run.program
+2025-11-28 17:03:12,733 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-11-28 17:03:14,233 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-11-28 17:03:14,234 [INFO] avantixrpa.engine - Step 4: ui.type (on_error=stop)
+2025-11-28 17:03:15,492 [INFO] avantixrpa.engine - Step 4 completed: ui.type
+2025-11-28 17:03:15,493 [INFO] avantixrpa.engine - Step 5: wait (on_error=stop)
+2025-11-28 17:03:15,994 [INFO] avantixrpa.engine - Step 5 completed: wait
+2025-11-28 17:03:15,995 [INFO] avantixrpa.engine - Step 6: ui.hotkey (on_error=stop)
+2025-11-28 17:03:16,096 [INFO] avantixrpa.engine - Step 6 completed: ui.hotkey
+2025-11-28 17:03:16,097 [INFO] avantixrpa.engine - Step 7: ui.type (on_error=stop)
+2025-11-28 17:03:17,210 [INFO] avantixrpa.engine - Step 7 completed: ui.type
+2025-11-28 17:03:17,211 [INFO] avantixrpa.engine - Flow finished
+2025-11-28 17:09:11,125 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - UI click test (on_error=stop)
+2025-11-28 17:09:11,125 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-11-28 17:09:11,126 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 17:09:11,126 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-11-28 17:09:11,590 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-11-28 17:09:11,591 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-11-28 17:09:11,791 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-11-28 17:09:11,792 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-11-28 17:09:11,923 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-11-28 17:09:11,923 [INFO] avantixrpa.engine - Flow finished
+2025-11-28 17:09:22,553 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - UI click test (on_error=stop)
+2025-11-28 17:09:22,553 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-11-28 17:09:22,553 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 17:09:22,554 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-11-28 17:09:23,018 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-11-28 17:09:23,019 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-11-28 17:09:23,220 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-11-28 17:09:23,221 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-11-28 17:09:23,333 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-11-28 17:09:23,334 [INFO] avantixrpa.engine - Flow finished
+2025-11-28 17:12:27,530 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - UI Notepad typing test (on_error=stop)
+2025-11-28 17:12:27,530 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-11-28 17:12:27,531 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 17:12:27,531 [INFO] avantixrpa.engine - Step 2: run.program (on_error=stop)
+2025-11-28 17:12:27,536 [INFO] avantixrpa.engine - Step 2 completed: run.program
+2025-11-28 17:12:27,537 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-11-28 17:12:29,037 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-11-28 17:12:29,038 [INFO] avantixrpa.engine - Step 4: ui.type (on_error=stop)
+2025-11-28 17:12:30,296 [INFO] avantixrpa.engine - Step 4 completed: ui.type
+2025-11-28 17:12:30,296 [INFO] avantixrpa.engine - Step 5: wait (on_error=stop)
+2025-11-28 17:12:30,797 [INFO] avantixrpa.engine - Step 5 completed: wait
+2025-11-28 17:12:30,798 [INFO] avantixrpa.engine - Step 6: ui.hotkey (on_error=stop)
+2025-11-28 17:12:30,900 [INFO] avantixrpa.engine - Step 6 completed: ui.hotkey
+2025-11-28 17:12:30,901 [INFO] avantixrpa.engine - Step 7: ui.type (on_error=stop)
+2025-11-28 17:12:32,012 [INFO] avantixrpa.engine - Step 7 completed: ui.type
+2025-11-28 17:12:32,013 [INFO] avantixrpa.engine - Flow finished
+2025-11-28 17:18:07,382 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - UI Notepad typing test (on_error=stop)
+2025-11-28 17:18:07,383 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-11-28 17:18:07,384 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-11-28 17:18:07,384 [INFO] avantixrpa.engine - Step 2: run.program (on_error=stop)
+2025-11-28 17:18:07,393 [INFO] avantixrpa.engine - Step 2 completed: run.program
+2025-11-28 17:18:07,394 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-11-28 17:18:08,895 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-11-28 17:18:08,895 [INFO] avantixrpa.engine - Step 4: ui.type (on_error=stop)
+2025-11-28 17:18:10,129 [INFO] avantixrpa.engine - Step 4 completed: ui.type
+2025-11-28 17:18:10,130 [INFO] avantixrpa.engine - Step 5: wait (on_error=stop)
+2025-11-28 17:18:10,631 [INFO] avantixrpa.engine - Step 5 completed: wait
+2025-11-28 17:18:10,633 [INFO] avantixrpa.engine - Step 6: ui.hotkey (on_error=stop)
+2025-11-28 17:18:10,736 [INFO] avantixrpa.engine - Step 6 completed: ui.hotkey
+2025-11-28 17:18:10,737 [INFO] avantixrpa.engine - Step 7: ui.type (on_error=stop)
+2025-11-28 17:18:11,846 [INFO] avantixrpa.engine - Step 7 completed: ui.type
+2025-11-28 17:18:11,847 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 10:05:43,722 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - Open portal from resources (on_error=stop)
+2025-12-01 10:05:43,722 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-12-01 10:05:43,722 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-12-01 10:05:43,723 [INFO] avantixrpa.engine - Step 2: resource.open_site (on_error=stop)
+2025-12-01 10:05:43,779 [INFO] avantixrpa.engine - Step 2 completed: resource.open_site
+2025-12-01 10:05:43,780 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-01 10:05:44,780 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-01 10:05:44,781 [INFO] avantixrpa.engine - Step 4: print (on_error=stop)
+2025-12-01 10:05:44,782 [INFO] avantixrpa.engine - Step 4 completed: print
+2025-12-01 10:05:44,783 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 10:05:45,249 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - Open daily report from resources (on_error=stop)
+2025-12-01 10:05:45,250 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-12-01 10:05:45,250 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-12-01 10:05:45,251 [INFO] avantixrpa.engine - Step 2: resource.open_file (on_error=stop)
+2025-12-01 10:05:45,252 [ERROR] avantixrpa.engine - Step 2 failed: 登録ファイルが存在しません: C:\Users\熊大病院保守担当\Desktop\sample.xlsx
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\resource_actions.py", line 87, in execute
+    raise FileNotFoundError(f"登録ファイルが存在しません: {path}")
+FileNotFoundError: 登録ファイルが存在しません: C:\Users\熊大病院保守担当\Desktop\sample.xlsx
+2025-12-01 12:30:54,869 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - Log backup sample (on_error=stop)
+2025-12-01 12:30:54,869 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-12-01 12:30:54,870 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-12-01 12:30:54,870 [INFO] avantixrpa.engine - Step 2: file.copy (on_error=stop)
+2025-12-01 12:30:54,874 [INFO] avantixrpa.engine - Step 2 completed: file.copy
+2025-12-01 12:30:54,874 [INFO] avantixrpa.engine - Step 3: print (on_error=stop)
+2025-12-01 12:30:54,874 [INFO] avantixrpa.engine - Step 3 completed: print
+2025-12-01 12:30:54,874 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 12:34:43,524 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - UI Notepad typing test (on_error=stop)
+2025-12-01 12:34:43,526 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-12-01 12:34:43,526 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-12-01 12:34:43,527 [INFO] avantixrpa.engine - Step 2: run.program (on_error=stop)
+2025-12-01 12:34:43,535 [INFO] avantixrpa.engine - Step 2 completed: run.program
+2025-12-01 12:34:43,536 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-01 12:34:45,036 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-01 12:34:45,037 [INFO] avantixrpa.engine - Step 4: ui.type (on_error=stop)
+2025-12-01 12:34:46,267 [INFO] avantixrpa.engine - Step 4 completed: ui.type
+2025-12-01 12:34:46,268 [INFO] avantixrpa.engine - Step 5: wait (on_error=stop)
+2025-12-01 12:34:46,768 [INFO] avantixrpa.engine - Step 5 completed: wait
+2025-12-01 12:34:46,769 [INFO] avantixrpa.engine - Step 6: ui.hotkey (on_error=stop)
+2025-12-01 12:34:46,872 [INFO] avantixrpa.engine - Step 6 completed: ui.hotkey
+2025-12-01 12:34:46,872 [INFO] avantixrpa.engine - Step 7: ui.type (on_error=stop)
+2025-12-01 12:34:47,983 [INFO] avantixrpa.engine - Step 7 completed: ui.type
+2025-12-01 12:34:47,984 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 13:04:26,986 [INFO] avantixrpa.engine - Start flow: パイセンのチャンネル (on_error=stop)
+2025-12-01 13:04:26,987 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-12-01 13:04:26,987 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-12-01 13:04:26,988 [INFO] avantixrpa.engine - Step 2: resource.open_site (on_error=stop)
+2025-12-01 13:04:27,050 [INFO] avantixrpa.engine - Step 2 completed: resource.open_site
+2025-12-01 13:04:27,050 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-01 13:04:28,051 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-01 13:04:28,052 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 13:04:58,440 [INFO] avantixrpa.engine - Start flow: パイセンのチャンネル (on_error=stop)
+2025-12-01 13:04:58,440 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-12-01 13:04:58,440 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-12-01 13:04:58,441 [INFO] avantixrpa.engine - Step 2: resource.open_site (on_error=stop)
+2025-12-01 13:04:58,474 [INFO] avantixrpa.engine - Step 2 completed: resource.open_site
+2025-12-01 13:04:58,475 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-01 13:04:59,476 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-01 13:04:59,477 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 13:20:34,859 [INFO] avantixrpa.engine - Start flow: パイセンのチャンネル (on_error=stop)
+2025-12-01 13:20:34,859 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-12-01 13:20:34,860 [INFO] avantixrpa.engine - Step 1 completed: print
+2025-12-01 13:20:34,860 [INFO] avantixrpa.engine - Step 2: resource.open_site (on_error=stop)
+2025-12-01 13:20:34,923 [INFO] avantixrpa.engine - Step 2 completed: resource.open_site
+2025-12-01 13:20:34,923 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-01 13:20:35,924 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-01 13:20:35,925 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 13:44:07,802 [INFO] avantixrpa.engine - Start flow: a (on_error=stop)
+2025-12-01 13:44:07,803 [INFO] avantixrpa.engine - Step 1: browser.open (on_error=stop)
+2025-12-01 13:44:07,870 [INFO] avantixrpa.engine - Step 1 completed: browser.open
+2025-12-01 13:44:07,870 [INFO] avantixrpa.engine - Step 2: file.copy (on_error=stop)
+2025-12-01 13:44:07,874 [ERROR] avantixrpa.engine - Step 2 failed: [WinError 2] 指定されたファイルが見つかりません。
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\file_actions.py", line 31, in execute
+    shutil.copy2(src_path, dst_path)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\shutil.py", line 453, in copy2
+    _winapi.CopyFile2(src_, dst_, flags)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 指定されたファイルが見つかりません。
+2025-12-01 13:44:50,331 [INFO] avantixrpa.engine - Start flow: a (on_error=stop)
+2025-12-01 13:44:50,331 [INFO] avantixrpa.engine - Step 1: browser.open (on_error=stop)
+2025-12-01 13:44:50,359 [INFO] avantixrpa.engine - Step 1 completed: browser.open
+2025-12-01 13:44:50,360 [INFO] avantixrpa.engine - Step 2: browser.open (on_error=stop)
+2025-12-01 13:44:50,383 [INFO] avantixrpa.engine - Step 2 completed: browser.open
+2025-12-01 13:44:50,384 [INFO] avantixrpa.engine - Step 3: browser.open (on_error=stop)
+2025-12-01 13:44:50,437 [INFO] avantixrpa.engine - Step 3 completed: browser.open
+2025-12-01 13:44:50,440 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 13:53:43,817 [INFO] avantixrpa.engine - Start flow: ぱいせんのちゃんねる (on_error=stop)
+2025-12-01 13:53:43,818 [INFO] avantixrpa.engine - Step 1: browser.open (on_error=stop)
+2025-12-01 13:53:43,877 [INFO] avantixrpa.engine - Step 1 completed: browser.open
+2025-12-01 13:53:43,878 [INFO] avantixrpa.engine - Step 2: browser.open (on_error=stop)
+2025-12-01 13:53:43,895 [INFO] avantixrpa.engine - Step 2 completed: browser.open
+2025-12-01 13:53:43,896 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 14:10:45,665 [INFO] avantixrpa.engine - Start flow: test (on_error=stop)
+2025-12-01 14:10:45,666 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 14:10:45,667 [ERROR] avantixrpa.engine - Step 1 failed: "resources.json の 'sites' 内にキー 'paisen_channel' が見つかりません"
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\resource_actions.py", line 51, in execute
+    raise KeyError(f"resources.json の 'sites' 内にキー '{key}' が見つかりません")
+KeyError: "resources.json の 'sites' 内にキー 'paisen_channel' が見つかりません"
+2025-12-01 14:11:32,416 [INFO] avantixrpa.engine - Start flow: test (on_error=stop)
+2025-12-01 14:11:32,417 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 14:11:32,479 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-01 14:11:32,479 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-01 14:11:32,946 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-01 14:11:32,947 [INFO] avantixrpa.engine - Step 3: ui.click (on_error=stop)
+2025-12-01 14:11:33,058 [INFO] avantixrpa.engine - Step 3 completed: ui.click
+2025-12-01 14:11:33,060 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 14:11:52,970 [INFO] avantixrpa.engine - Start flow: test (on_error=stop)
+2025-12-01 14:11:52,971 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 14:11:52,992 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-01 14:11:52,993 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-01 14:11:53,459 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-01 14:11:53,461 [INFO] avantixrpa.engine - Step 3: ui.click (on_error=stop)
+2025-12-01 14:11:53,577 [INFO] avantixrpa.engine - Step 3 completed: ui.click
+2025-12-01 14:11:53,578 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 14:12:48,100 [INFO] avantixrpa.engine - Start flow: test (on_error=stop)
+2025-12-01 14:12:48,101 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 14:12:48,131 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-01 14:12:48,131 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-01 14:12:48,597 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-01 14:12:48,599 [INFO] avantixrpa.engine - Step 3: ui.click (on_error=stop)
+2025-12-01 14:12:48,733 [INFO] avantixrpa.engine - Step 3 completed: ui.click
+2025-12-01 14:12:48,733 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 14:13:31,226 [INFO] avantixrpa.engine - Start flow: test (on_error=stop)
+2025-12-01 14:13:31,227 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 14:13:31,251 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-01 14:13:31,252 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-01 14:13:31,717 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-01 14:13:31,718 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-01 14:13:34,719 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-01 14:13:34,719 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-12-01 14:13:34,824 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-12-01 14:13:34,825 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 14:14:36,782 [INFO] avantixrpa.engine - Start flow: test (on_error=stop)
+2025-12-01 14:14:36,783 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 14:14:36,810 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-01 14:14:36,810 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-01 14:14:37,275 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-01 14:14:37,276 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-01 14:14:40,278 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-01 14:14:40,279 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-12-01 14:14:40,389 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-12-01 14:14:40,390 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 15:26:00,869 [INFO] avantixrpa.engine - Start flow: test2 (on_error=stop)
+2025-12-01 15:26:00,870 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 15:26:00,938 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-01 15:26:00,939 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-01 15:26:04,141 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-01 15:26:04,142 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-01 15:26:06,143 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-01 15:26:06,145 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-12-01 15:26:06,251 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-12-01 15:26:06,252 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 16:23:10,557 [INFO] avantixrpa.engine - Start flow: test2 (on_error=stop)
+2025-12-01 16:23:10,558 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:23:10,627 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-01 16:23:10,627 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-01 16:23:13,816 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-01 16:23:13,817 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-01 16:23:15,818 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-01 16:23:15,818 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-12-01 16:23:15,936 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-12-01 16:23:15,936 [INFO] avantixrpa.engine - Flow finished
+2025-12-01 16:27:04,014 [INFO] avantixrpa.engine - Start flow: test2 (on_error=stop)
+2025-12-01 16:27:04,015 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:27:04,016 [ERROR] avantixrpa.engine - Step 1 failed: "resources.json の 'sites' 内にキー 'paisen_channel' が見つかりません"
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\resource_actions.py", line 51, in execute
+    raise KeyError(f"resources.json の 'sites' 内にキー '{key}' が見つかりません")
+KeyError: "resources.json の 'sites' 内にキー 'paisen_channel' が見つかりません"
+2025-12-01 16:27:29,497 [INFO] avantixrpa.engine - Start flow: test2 (on_error=stop)
+2025-12-01 16:27:29,497 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:27:29,499 [ERROR] avantixrpa.engine - Step 1 failed: "resources.json の 'sites' 内にキー 'paisen_channel' が見つかりません"
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\resource_actions.py", line 51, in execute
+    raise KeyError(f"resources.json の 'sites' 内にキー '{key}' が見つかりません")
+KeyError: "resources.json の 'sites' 内にキー 'paisen_channel' が見つかりません"
+2025-12-01 16:28:09,079 [INFO] avantixrpa.engine - Start flow: test2 (on_error=stop)
+2025-12-01 16:28:09,080 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:28:09,089 [ERROR] avantixrpa.engine - Step 1 failed: startfile: filepath should be string, bytes or os.PathLike, not dict
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\resource_actions.py", line 54, in execute
+    opened = webbrowser.open(url, new=2)
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\webbrowser.py", line 94, in open
+    if browser.open(url, new, autoraise):
+       ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\webbrowser.py", line 580, in open
+    os.startfile(url)
+    ~~~~~~~~~~~~^^^^^
+TypeError: startfile: filepath should be string, bytes or os.PathLike, not dict
+2025-12-01 16:29:37,098 [INFO] avantixrpa.engine - Start flow: test2 (on_error=stop)
+2025-12-01 16:29:37,099 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:29:37,100 [ERROR] avantixrpa.engine - Step 1 failed: startfile: filepath should be string, bytes or os.PathLike, not dict
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\resource_actions.py", line 54, in execute
+    opened = webbrowser.open(url, new=2)
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\webbrowser.py", line 94, in open
+    if browser.open(url, new, autoraise):
+       ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\webbrowser.py", line 580, in open
+    os.startfile(url)
+    ~~~~~~~~~~~~^^^^^
+TypeError: startfile: filepath should be string, bytes or os.PathLike, not dict
+2025-12-01 16:30:14,031 [INFO] avantixrpa.engine - Start flow: test2 (on_error=stop)
+2025-12-01 16:30:14,032 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:30:14,032 [ERROR] avantixrpa.engine - Step 1 failed: startfile: filepath should be string, bytes or os.PathLike, not dict
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\resource_actions.py", line 54, in execute
+    opened = webbrowser.open(url, new=2)
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\webbrowser.py", line 94, in open
+    if browser.open(url, new, autoraise):
+       ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\webbrowser.py", line 580, in open
+    os.startfile(url)
+    ~~~~~~~~~~~~^^^^^
+TypeError: startfile: filepath should be string, bytes or os.PathLike, not dict
+2025-12-01 16:30:51,740 [INFO] avantixrpa.engine - Start flow: test2 (on_error=stop)
+2025-12-01 16:30:51,740 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:30:51,751 [ERROR] avantixrpa.engine - Step 1 failed: startfile: filepath should be string, bytes or os.PathLike, not dict
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\resource_actions.py", line 54, in execute
+    opened = webbrowser.open(url, new=2)
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\webbrowser.py", line 94, in open
+    if browser.open(url, new, autoraise):
+       ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\webbrowser.py", line 580, in open
+    os.startfile(url)
+    ~~~~~~~~~~~~^^^^^
+TypeError: startfile: filepath should be string, bytes or os.PathLike, not dict
+2025-12-01 16:34:14,600 [INFO] avantixrpa.engine - Start flow: test2 (on_error=stop)
+2025-12-01 16:34:14,601 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:34:14,601 [ERROR] avantixrpa.engine - Unknown action: 'resource.open_site'
+2025-12-01 16:37:49,014 [INFO] avantixrpa.engine - Start flow: ぱいせえええええええええん (on_error=stop)
+2025-12-01 16:37:49,014 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:37:49,014 [ERROR] avantixrpa.engine - Unknown action: 'resource.open_site'
+2025-12-01 16:39:41,118 [INFO] avantixrpa.engine - Start flow: ぱいせえええええええええん (on_error=stop)
+2025-12-01 16:39:41,119 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:39:41,120 [ERROR] avantixrpa.engine - Unknown action: 'resource.open_site'
+2025-12-01 16:40:56,622 [INFO] avantixrpa.engine - Start flow: ぱいせえええええええええん (on_error=stop)
+2025-12-01 16:40:56,622 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:41:00,224 [INFO] avantixrpa.engine - Start flow: test2 (on_error=stop)
+2025-12-01 16:41:00,226 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 16:41:09,191 [INFO] avantixrpa.engine - Start flow: ぱいせえええええええええん (on_error=stop)
+2025-12-01 16:41:09,192 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 17:28:40,126 [INFO] avantixrpa.engine - Start flow: ぱいせえええええええええん (on_error=stop)
+2025-12-01 17:28:40,127 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-01 17:30:02,920 [INFO] avantixrpa.engine - Start flow: aaa (on_error=stop)
+2025-12-01 17:30:02,921 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-02 08:48:32,469 [INFO] avantixrpa.engine - Start flow: AVANTIXRPA - Open portal from resources (on_error=stop)
+2025-12-02 08:48:32,470 [INFO] avantixrpa.engine - Step 1: print (on_error=stop)
+2025-12-02 09:05:17,317 [INFO] avantixrpa.engine - Start flow: ぱいせえええええええええん (on_error=stop)
+2025-12-02 09:05:17,318 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-02 09:05:17,380 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-02 09:05:17,380 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-02 09:05:19,560 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-02 09:05:19,561 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-02 09:05:21,562 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-02 09:05:21,563 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-12-02 09:05:21,669 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-12-02 09:05:21,671 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 09:33:00,541 [INFO] avantixrpa.engine - Start flow: スキャン (on_error=stop)
+2025-12-02 09:33:00,542 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-02 09:33:00,617 [INFO] avantixrpa.engine - Step 1 completed: run.program
+2025-12-02 09:33:00,618 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 09:34:07,861 [INFO] avantixrpa.engine - Start flow: スキャン (on_error=stop)
+2025-12-02 09:34:07,862 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-02 09:34:11,670 [INFO] avantixrpa.engine - Step 1 completed: run.program
+2025-12-02 09:34:11,670 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 09:34:19,045 [INFO] avantixrpa.engine - Start flow: スキャン (on_error=stop)
+2025-12-02 09:34:19,046 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-02 09:34:19,056 [INFO] avantixrpa.engine - Step 1 completed: run.program
+2025-12-02 09:34:19,057 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 10:06:17,253 [INFO] avantixrpa.engine - Start flow: すきゃんんん (on_error=stop)
+2025-12-02 10:06:17,254 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-02 10:06:17,263 [INFO] avantixrpa.engine - Step 1 completed: run.program
+2025-12-02 10:06:17,264 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 10:06:21,397 [INFO] avantixrpa.engine - Start flow: すきゃんんん (on_error=stop)
+2025-12-02 10:06:21,398 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-02 10:06:21,408 [INFO] avantixrpa.engine - Step 1 completed: run.program
+2025-12-02 10:06:21,409 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 10:16:45,895 [INFO] avantixrpa.engine - Start flow: scan (on_error=stop)
+2025-12-02 10:16:45,896 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-02 10:16:45,898 [ERROR] avantixrpa.engine - Step 1 failed: [WinError 193] %1 は有効な Win32 アプリケーションではありません。
+Traceback (most recent call last):
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\core\engine.py", line 71, in run_flow
+    action.execute(context, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\Desktop\AVANTIXRPA\avantixrpa\actions\builtins\run_program_action.py", line 43, in execute
+    subprocess.Popen(cmd_list)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\熊大病院保守担当\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1551, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+OSError: [WinError 193] %1 は有効な Win32 アプリケーションではありません。
+2025-12-02 10:17:08,578 [INFO] avantixrpa.engine - Start flow: scan (on_error=stop)
+2025-12-02 10:17:08,578 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-02 10:17:08,586 [INFO] avantixrpa.engine - Step 1 completed: run.program
+2025-12-02 10:17:08,586 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 10:27:17,391 [INFO] avantixrpa.engine - Start flow: test (on_error=stop)
+2025-12-02 10:27:17,392 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-02 10:27:17,453 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-02 10:27:17,453 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-02 10:27:17,919 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-02 10:27:17,920 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-02 10:27:20,921 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-02 10:27:20,922 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-12-02 10:27:21,029 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-12-02 10:27:21,030 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 10:27:22,519 [INFO] avantixrpa.engine - Start flow: scan (on_error=stop)
+2025-12-02 10:27:22,520 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-02 10:27:22,600 [INFO] avantixrpa.engine - Step 1 completed: run.program
+2025-12-02 10:27:22,600 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 11:01:27,168 [INFO] avantixrpa.engine - Start flow: スクロールテスト (on_error=stop)
+2025-12-02 11:01:27,168 [INFO] avantixrpa.engine - Step 1: wait (on_error=stop)
+2025-12-02 11:01:29,169 [INFO] avantixrpa.engine - Step 1 completed: wait
+2025-12-02 11:01:29,171 [INFO] avantixrpa.engine - Step 2: ui.scroll (on_error=stop)
+2025-12-02 11:01:29,273 [INFO] avantixrpa.engine - Step 2 completed: ui.scroll
+2025-12-02 11:01:29,274 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-02 11:01:30,276 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-02 11:01:30,277 [INFO] avantixrpa.engine - Step 4: ui.scroll (on_error=stop)
+2025-12-02 11:01:30,379 [INFO] avantixrpa.engine - Step 4 completed: ui.scroll
+2025-12-02 11:01:30,380 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 11:01:34,950 [INFO] avantixrpa.engine - Start flow: スクロールテスト (on_error=stop)
+2025-12-02 11:01:34,950 [INFO] avantixrpa.engine - Step 1: wait (on_error=stop)
+2025-12-02 11:01:36,951 [INFO] avantixrpa.engine - Step 1 completed: wait
+2025-12-02 11:01:36,952 [INFO] avantixrpa.engine - Step 2: ui.scroll (on_error=stop)
+2025-12-02 11:01:37,054 [INFO] avantixrpa.engine - Step 2 completed: ui.scroll
+2025-12-02 11:01:37,055 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-02 11:01:38,059 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-02 11:01:38,061 [INFO] avantixrpa.engine - Step 4: ui.scroll (on_error=stop)
+2025-12-02 11:01:38,163 [INFO] avantixrpa.engine - Step 4 completed: ui.scroll
+2025-12-02 11:01:38,165 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 11:46:21,058 [INFO] avantixrpa.engine - Start flow: GPT (on_error=stop)
+2025-12-02 11:46:21,059 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-02 11:46:21,121 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-02 11:46:21,121 [INFO] avantixrpa.engine - Flow finished
+2025-12-02 13:02:29,522 [INFO] avantixrpa.engine - Start flow: スクロールテスト (on_error=stop)
+2025-12-02 13:02:29,523 [INFO] avantixrpa.engine - Step 1: wait (on_error=stop)
+2025-12-02 13:02:31,524 [INFO] avantixrpa.engine - Step 1 completed: wait
+2025-12-02 13:02:31,526 [INFO] avantixrpa.engine - Step 2: ui.scroll (on_error=stop)
+2025-12-02 13:02:31,628 [INFO] avantixrpa.engine - Step 2 completed: ui.scroll
+2025-12-02 13:02:31,630 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-02 13:02:32,631 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-02 13:02:32,633 [INFO] avantixrpa.engine - Step 4: ui.scroll (on_error=stop)
+2025-12-02 13:02:32,736 [INFO] avantixrpa.engine - Step 4 completed: ui.scroll
+2025-12-02 13:02:32,737 [INFO] avantixrpa.engine - Flow finished

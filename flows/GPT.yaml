@@ -1,0 +1,7 @@
+name: GPT
+on_error: stop
+steps:
+- action: resource.open_site
+  params:
+    key: chatgpt
+  on_error: stop

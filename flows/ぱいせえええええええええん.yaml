@@ -1,0 +1,21 @@
+name: ぱいせえええええええええん
+on_error: stop
+steps:
+- action: resource.open_site
+  params:
+    key: paisen_channel
+  on_error: stop
+- action: ui.move
+  params:
+    x: 658
+    y: 935
+    duration: 2.0
+- action: wait
+  params:
+    seconds: 2.0
+  on_error: stop
+- action: ui.click
+  params:
+    button: left
+    clicks: 1
+  on_error: stop

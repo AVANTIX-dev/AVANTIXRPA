@@ -1,0 +1,35 @@
+name: AVANTIXRPA - UI Notepad typing test
+on_error: stop
+
+steps:
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "メモ帳を起動して自動入力テストを開始します。"
+
+  - action: run.program
+    params:
+      command: "notepad.exe"
+
+  - action: wait
+    params:
+      seconds: 1.5
+
+  # ※ メモ帳のテキストエリアがフォーカスされている前提
+  - action: ui.type
+    params:
+      text: "これはAVANTIXRPAのUIテストです。"
+      interval: 0.05
+
+  - action: wait
+    params:
+      seconds: 0.5
+
+  - action: ui.hotkey
+    params:
+      keys: ["enter"]
+
+  - action: ui.type
+    params:
+      text: "人間の代わりにキーボードを叩いています。"
+      interval: 0.05
