@@ -15,6 +15,30 @@
     "chatgpt": {
       "label": "ChatGPT",
       "url": "https://chatgpt.com"
+    },
+    "claude": {
+      "label": "Claude",
+      "url": "https://claude.ai/chat/ebf3f6ab-01f1-4117-8ec6-c5518e7bc660"
+    },
+    "outlook_mail": {
+      "label": "Outlook Mail",
+      "url": "https://outlook.office.com/mail/"
+    },
+    "windows_4_nexmag": {
+      "label": "Windows スクリーンショットを撮る4つの方法 | パソコン工房 NEXMAG",
+      "url": "https://www.pc-koubou.jp/magazine/35994?srsltid=AfmBOoqOxMnkBNuhU-GSX3W51GS3AcYaKrXsRtyx_i2qMV0XjaWbMv7u"
+    },
+    "windows_4_nexmag_2": {
+      "label": "Windows スクリーンショットを撮る4つの方法 | パソコン工房 NEXMAG",
+      "url": "https://www.pc-koubou.jp/magazine/35994?srsltid=AfmBOoqOxMnkBNuhU-GSX3W51GS3AcYaKrXsRtyx_i2qMV0XjaWbMv7u"
+    },
+    "rpacoopel_30": {
+      "label": "クラウド型RPAツールCoopel(クーペル) まずは30日間無料トライアル",
+      "url": "https://coopel.ai/"
+    },
+    "outlook_mail_2": {
+      "label": "Outlook Mail",
+      "url": "https://outlook.office.com/mail/inbox/id/AAQkADcwZTM5MGJjLTVmODctNGIwOS1hNjlkLWY3NzY0OGU3M2FmZAAQAAHAm91OO01GmiK3SJJK%2By8%3D"
     }
   },
   "files": {}

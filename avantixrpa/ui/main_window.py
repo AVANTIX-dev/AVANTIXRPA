@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 import html as html_lib
 import re
 import unicodedata
-
+from datetime import datetime
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
@@ -35,6 +35,11 @@ from avantixrpa.actions.builtins import BUILTIN_ACTIONS
 
 # パス定義（config.paths と共有）
 TRASH_DIR = FLOWS_DIR / ".trash"
+
+# ロゴ画像（config/avantix_logo.png に置く想定）
+LOGO_FILE = CONFIG_DIR / "avantix_logo.png"
+
+APP_COPYRIGHT = "© 2025 Toshiki Azuma. All rights reserved."
 
 DEFAULT_RESOURCES = {
     "sites": {
@@ -72,7 +77,7 @@ class StepEditor(tk.Toplevel):
         self._x_var: Optional[tk.StringVar] = None
         self._y_var: Optional[tk.StringVar] = None
 
-        # リソース情報（サイト / ファイルのキー一覧に使う）
+        # リソース情報（サイト / ファイル）
         if resources is None:
             resources = {}
         self.resources: Dict[str, Any] = {
@@ -110,17 +115,17 @@ class StepEditor(tk.Toplevel):
             {
                 "id": "resource.open_site",
                 "label": "登録済みサイトを開く",
-                "help": "リソース管理タブで登録した「サイト名（キー）」のURLを開きます。",
+                "help": "リソース管理タブで登録した「サイト」を開きます。",
                 "fields": [
-                    {"name": "key", "label": "サイト名（キー）", "type": "str", "default": "google"},
+                    {"name": "key", "label": "サイト（表示名）", "type": "str", "default": "google"},
                 ],
             },
             {
                 "id": "resource.open_file",
                 "label": "登録済みファイルを開く",
-                "help": "リソース管理タブで登録した「ファイル名（キー）」のファイルを開きます。",
+                "help": "リソース管理タブで登録した「ファイル」を開きます。",
                 "fields": [
-                    {"name": "key", "label": "ファイル名（キー）", "type": "str", "default": "sample_excel"},
+                    {"name": "key", "label": "ファイル（表示名）", "type": "str", "default": "sample_excel"},
                 ],
             },
             {
@@ -163,7 +168,7 @@ class StepEditor(tk.Toplevel):
                     {"name": "duration", "label": "移動時間（秒）", "type": "float", "default": 0.3},
                 ],
             },
-                        {
+            {
                 "id": "ui.click",
                 "label": "マウスクリックする",
                 "help": "マウスクリックをします。座標を空欄にすると現在位置でクリックします。",
@@ -211,10 +216,10 @@ class StepEditor(tk.Toplevel):
         self.on_error_var = tk.StringVar()
         self.help_text_var = tk.StringVar()
 
+        # name -> (tk.StringVar, field_dict)
         self.field_vars: Dict[str, tuple[tk.StringVar, Dict[str, Any]]] = {}
 
         self._create_widgets()
-
         self.action_label_var.trace_add("write", lambda *args: self._on_action_changed())
 
         if initial_step:
@@ -295,11 +300,9 @@ class StepEditor(tk.Toplevel):
         self._x_var = None
         self._y_var = None
 
-        # resources.json から取得済みのサイト/ファイル情報
         sites = self.resources.get("sites") or {}
         files = self.resources.get("files") or {}
 
-        # 各フィールドの入力欄を作る
         for row, field in enumerate(action_def.get("fields", [])):
             fname = field["name"]
             flabel = field.get("label", fname)
@@ -309,51 +312,141 @@ class StepEditor(tk.Toplevel):
                 row=row, column=0, sticky="e", padx=4, pady=2
             )
 
-            # --- resource.open_site: key はサイト一覧から選択 ---
+            # --- resource.open_site: 表示名だけ見せるコンボ + 新規/編集 ---
             if self._current_action_id == "resource.open_site" and fname == "key":
+                # keys -> displays (表示名 or key)
                 site_keys = sorted(sites.keys())
-                var = tk.StringVar()
-                if self._initial_params and fname in self._initial_params:
-                    var.set(str(self._initial_params[fname]))
-                elif default:
-                    var.set(str(default))
-                elif site_keys:
-                    var.set(site_keys[0])
+                display_values = []
+                for k in site_keys:
+                    item = sites.get(k) or {}
+                    display_values.append(item.get("label") or k)
 
-                entry = ttk.Combobox(
-                    self.params_frame,
+                var = tk.StringVar()
+
+                # initial_params に key が入っているので、表示名に変換
+                if self._initial_params and fname in self._initial_params:
+                    key = str(self._initial_params[fname])
+                    item = sites.get(key) or {}
+                    disp = item.get("label") or key
+                    var.set(disp)
+                elif default:
+                    key = str(default)
+                    item = sites.get(key) or {}
+                    disp = item.get("label") or key
+                    if display_values:
+                        # defaultがリストにない場合もあるので、一応セット
+                        var.set(disp)
+                    else:
+                        var.set("")
+                elif display_values:
+                    var.set(display_values[0])
+                else:
+                    var.set("")
+
+                container = ttk.Frame(self.params_frame)
+                container.grid(row=row, column=1, sticky="ew", padx=4, pady=2)
+                container.columnconfigure(0, weight=1)
+
+                combo = ttk.Combobox(
+                    container,
                     textvariable=var,
-                    values=site_keys,
+                    values=display_values,
                     state="readonly",
                     width=30,
                 )
-                entry.grid(row=row, column=1, sticky="ew", padx=4, pady=2)
-                self.field_vars[fname] = (var, field)
+                combo.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+
+                # field情報にマッピングと種別を埋め込む
+                fcopy = dict(field)
+                fcopy["resource_type"] = "site"
+                fcopy["keys"] = site_keys
+                fcopy["display_values"] = display_values
+
+                ttk.Button(
+                    container,
+                    text="新規",
+                    command=lambda v=var, c=combo, fn=fname: self._open_site_resource_editor(
+                        v, c, fn, is_new=True
+                    ),
+                ).grid(row=0, column=1, padx=(0, 2))
+
+                ttk.Button(
+                    container,
+                    text="編集",
+                    command=lambda v=var, c=combo, fn=fname: self._open_site_resource_editor(
+                        v, c, fn, is_new=False
+                    ),
+                ).grid(row=0, column=2)
+
+                self.field_vars[fname] = (var, fcopy)
                 continue
 
-            # --- resource.open_file: key はファイル一覧から選択 ---
+            # --- resource.open_file: 表示名だけ見せるコンボ + 新規/編集 ---
             if self._current_action_id == "resource.open_file" and fname == "key":
                 file_keys = sorted(files.keys())
-                var = tk.StringVar()
-                if self._initial_params and fname in self._initial_params:
-                    var.set(str(self._initial_params[fname]))
-                elif default:
-                    var.set(str(default))
-                elif file_keys:
-                    var.set(file_keys[0])
+                display_values = []
+                for k in file_keys:
+                    item = files.get(k) or {}
+                    display_values.append(item.get("label") or k)
 
-                entry = ttk.Combobox(
-                    self.params_frame,
+                var = tk.StringVar()
+
+                if self._initial_params and fname in self._initial_params:
+                    key = str(self._initial_params[fname])
+                    item = files.get(key) or {}
+                    disp = item.get("label") or key
+                    var.set(disp)
+                elif default:
+                    key = str(default)
+                    item = files.get(key) or {}
+                    disp = item.get("label") or key
+                    if display_values:
+                        var.set(disp)
+                    else:
+                        var.set("")
+                elif display_values:
+                    var.set(display_values[0])
+                else:
+                    var.set("")
+
+                container = ttk.Frame(self.params_frame)
+                container.grid(row=row, column=1, sticky="ew", padx=4, pady=2)
+                container.columnconfigure(0, weight=1)
+
+                combo = ttk.Combobox(
+                    container,
                     textvariable=var,
-                    values=file_keys,
+                    values=display_values,
                     state="readonly",
                     width=30,
                 )
-                entry.grid(row=row, column=1, sticky="ew", padx=4, pady=2)
-                self.field_vars[fname] = (var, field)
+                combo.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+
+                fcopy = dict(field)
+                fcopy["resource_type"] = "file"
+                fcopy["keys"] = file_keys
+                fcopy["display_values"] = display_values
+
+                ttk.Button(
+                    container,
+                    text="新規",
+                    command=lambda v=var, c=combo, fn=fname: self._open_file_resource_editor(
+                        v, c, fn, is_new=True
+                    ),
+                ).grid(row=0, column=1, padx=(0, 2))
+
+                ttk.Button(
+                    container,
+                    text="編集",
+                    command=lambda v=var, c=combo, fn=fname: self._open_file_resource_editor(
+                        v, c, fn, is_new=False
+                    ),
+                ).grid(row=0, column=2)
+
+                self.field_vars[fname] = (var, fcopy)
                 continue
 
-            # --- run.program: program だけ「参照...」ボタン付き & ドラッグ＆ドロップ対応 ---
+            # --- run.program: program だけ「参照...」ボタン付き & D&D ---
             if self._current_action_id == "run.program" and fname == "program":
                 var = tk.StringVar()
                 if self._initial_params and fname in self._initial_params:
@@ -370,10 +463,8 @@ class StepEditor(tk.Toplevel):
                 entry = ttk.Entry(container, textvariable=var)
                 entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
 
-                # --- ここから D&D 対応 ---
                 if DND_AVAILABLE:
                     def _on_drop(event, target_var=var) -> None:
-                        # Explorer からの D&D は {C:\Program Files\foo.exe} みたいな形式で来る
                         data = event.data
                         if data.startswith("{") and data.endswith("}"):
                             data = data[1:-1]
@@ -383,11 +474,8 @@ class StepEditor(tk.Toplevel):
                         entry.drop_target_register(DND_FILES)
                         entry.dnd_bind("<<Drop>>", _on_drop)
                     except Exception:
-                        # 失敗しても GUI 全体が死なないように握りつぶす
                         pass
-                # --- ここまで D&D ---
 
-                # 参照ボタン（ファイルダイアログ）
                 def _browse_program(target_var=var) -> None:
                     path = filedialog.askopenfilename(
                         title="起動するプログラムを選択",
@@ -418,7 +506,6 @@ class StepEditor(tk.Toplevel):
             entry.grid(row=row, column=1, sticky="ew", padx=4, pady=2)
             self.field_vars[fname] = (var, field)
 
-            # ui.move / ui.click 用の座標キャプチャ
             if fname == "x":
                 self._x_var = var
             if fname == "y":
@@ -431,8 +518,327 @@ class StepEditor(tk.Toplevel):
                     command=self._capture_xy,
                 ).grid(row=row, column=2, padx=4, pady=2)
 
-        # 初期パラメータは使い終わったのでリセット
         self._initial_params = {}
+
+    # ---- resources 保存ヘルパー ----
+    def _save_resources_from_editor(self) -> None:
+        master = self.master
+        try:
+            if hasattr(master, "resources"):
+                master.resources = self.resources
+            if hasattr(master, "_save_resources"):
+                master._save_resources()
+        except Exception as exc:
+            print(f"[RPA] resources 保存失敗: {exc}")
+
+    # ---- サイト用クイック編集（表示名だけ見せる版） ----
+    def _open_site_resource_editor(
+        self,
+        target_var: tk.StringVar,
+        combo: ttk.Combobox,
+        field_name: str,
+        is_new: bool,
+    ) -> None:
+        sites = self.resources.setdefault("sites", {})
+
+        # 現在のフィールド情報（keys / display_values）を取る
+        var, fdict = self.field_vars.get(field_name, (target_var, {}))
+        keys: List[str] = list(fdict.get("keys") or [])
+        displays: List[str] = list(fdict.get("display_values") or [])
+
+        # 編集モードなら、現在選択中の表示名から key を逆引き
+        current_key: Optional[str] = None
+        if not is_new:
+            current_disp = target_var.get().strip()
+            if current_disp and displays and keys and len(displays) == len(keys):
+                try:
+                    idx = displays.index(current_disp)
+                    current_key = keys[idx]
+                except ValueError:
+                    current_key = None
+
+        initial_label = ""
+        initial_url = ""
+        if current_key and current_key in sites:
+            item = sites[current_key]
+            initial_label = item.get("label", "")
+            initial_url = item.get("url", "")
+
+        top = tk.Toplevel(self)
+        top.title("サイトリソースの編集")
+        top.resizable(False, False)
+        top.transient(self)  # StepEditor を親にする
+        top.grab_set()
+
+        frame = ttk.Frame(top, padding=8)
+        frame.grid(row=0, column=0, sticky="nsew")
+        frame.columnconfigure(1, weight=1)
+
+        ttk.Label(frame, text="表示名").grid(row=0, column=0, sticky="e", padx=4, pady=4)
+        label_var = tk.StringVar(value=initial_label)
+        ttk.Entry(frame, textvariable=label_var, width=40).grid(
+            row=0, column=1, columnspan=2, sticky="ew", padx=4, pady=4
+        )
+
+        ttk.Label(frame, text="URL").grid(row=1, column=0, sticky="e", padx=4, pady=4)
+        url_var = tk.StringVar(value=initial_url)
+        url_entry = ttk.Entry(frame, textvariable=url_var, width=40)
+        url_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=4, pady=4)
+
+        fetch_after_id = {"id": None}
+
+        def _schedule_auto_fill(*_args: object) -> None:
+            if fetch_after_id["id"] is not None:
+                try:
+                    top.after_cancel(fetch_after_id["id"])
+                except Exception:
+                    pass
+                fetch_after_id["id"] = None
+            fetch_after_id["id"] = top.after(800, _auto_fill_label_from_url)
+
+        def _auto_fill_label_from_url() -> None:
+            fetch_after_id["id"] = None
+
+            if label_var.get().strip():
+                return
+
+            url = url_var.get().strip()
+            if not url:
+                return
+            if "://" not in url and "." not in url:
+                return
+
+            master = self.master
+            fetch_title = getattr(master, "_fetch_title_from_url", None)
+            guess_label = getattr(master, "_guess_label_from_url", None)
+
+            title = fetch_title(url) if callable(fetch_title) else None
+            if title:
+                label_var.set(title)
+                return
+
+            guess = guess_label(url) if callable(guess_label) else None
+            if guess:
+                label_var.set(guess)
+
+        url_var.trace_add("write", _schedule_auto_fill)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.grid(row=2, column=0, columnspan=3, sticky="e", pady=(4, 0))
+
+        def _on_ok() -> None:
+            label = label_var.get().strip()
+            url = url_var.get().strip()
+            if not label or not url:
+                messagebox.showwarning("入力不足", "表示名とURLは必須です。", parent=top)
+                return
+
+            key = current_key or ""
+            if not key:
+                master = self.master
+                gen_key = getattr(master, "_generate_resource_key", None)
+                if callable(gen_key):
+                    key = gen_key(label, "site", sites)
+                else:
+                    key = label
+
+            sites[key] = {"label": label, "url": url}
+
+            # keys / displays を更新（表示名モード）
+            new_keys = sorted(sites.keys())
+            new_displays = []
+            for k in new_keys:
+                item = sites.get(k) or {}
+                new_displays.append(item.get("label") or k)
+
+            # 対応フィールドのメタデータを更新
+            if field_name in self.field_vars:
+                v2, f2 = self.field_vars[field_name]
+                f2["keys"] = new_keys
+                f2["display_values"] = new_displays
+
+            combo["values"] = new_displays
+            # 今追加/更新したものの表示名を選択
+            disp_new = sites[key].get("label") or key
+            target_var.set(disp_new)
+
+            self._save_resources_from_editor()
+            top.destroy()
+
+            # StepEditor を前面に戻す
+            try:
+                self.deiconify()
+                self.lift()
+                self.focus_force()
+            except Exception:
+                pass
+
+        def _on_cancel() -> None:
+            top.destroy()
+            try:
+                self.deiconify()
+                self.lift()
+                self.focus_force()
+            except Exception:
+                pass
+
+        ttk.Button(btn_frame, text="OK", command=_on_ok).grid(row=0, column=0, padx=4)
+        ttk.Button(btn_frame, text="キャンセル", command=_on_cancel).grid(row=0, column=1, padx=4)
+
+        url_entry.focus_set()
+
+    # ---- ファイル用クイック編集（表示名だけ見せる版） ----
+    def _open_file_resource_editor(
+        self,
+        target_var: tk.StringVar,
+        combo: ttk.Combobox,
+        field_name: str,
+        is_new: bool,
+    ) -> None:
+        files = self.resources.setdefault("files", {})
+
+        var, fdict = self.field_vars.get(field_name, (target_var, {}))
+        keys: List[str] = list(fdict.get("keys") or [])
+        displays: List[str] = list(fdict.get("display_values") or [])
+
+        current_key: Optional[str] = None
+        if not is_new:
+            current_disp = target_var.get().strip()
+            if current_disp and displays and keys and len(displays) == len(keys):
+                try:
+                    idx = displays.index(current_disp)
+                    current_key = keys[idx]
+                except ValueError:
+                    current_key = None
+
+        initial_label = ""
+        initial_path = ""
+        if current_key and current_key in files:
+            item = files[current_key]
+            initial_label = item.get("label", "")
+            initial_path = item.get("path", "")
+
+        top = tk.Toplevel(self)
+        top.title("ファイルリソースの編集")
+        top.resizable(False, False)
+        top.transient(self)
+        top.grab_set()
+
+        frame = ttk.Frame(top, padding=8)
+        frame.grid(row=0, column=0, sticky="nsew")
+        frame.columnconfigure(1, weight=1)
+
+        ttk.Label(frame, text="表示名").grid(row=0, column=0, sticky="e", padx=4, pady=4)
+        label_var = tk.StringVar(value=initial_label)
+        ttk.Entry(frame, textvariable=label_var, width=40).grid(
+            row=0, column=1, columnspan=2, sticky="ew", padx=4, pady=4
+        )
+
+        ttk.Label(frame, text="ファイルパス").grid(row=1, column=0, sticky="e", padx=4, pady=4)
+        path_var = tk.StringVar(value=initial_path)
+        path_entry = ttk.Entry(frame, textvariable=path_var, width=40)
+        path_entry.grid(row=1, column=1, sticky="ew", padx=4, pady=4)
+
+        def _on_browse() -> None:
+            path = filedialog.askopenfilename(parent=top, title="ファイルを選択")
+            if path:
+                path_var.set(path)
+
+        ttk.Button(frame, text="参照...", command=_on_browse).grid(
+            row=1, column=2, sticky="w", padx=(0, 4), pady=4
+        )
+
+        guess_after_id = {"id": None}
+
+        def _schedule_auto_fill(*_args: object) -> None:
+            if guess_after_id["id"] is not None:
+                try:
+                    top.after_cancel(guess_after_id["id"])
+                except Exception:
+                    pass
+                guess_after_id["id"] = None
+            guess_after_id["id"] = top.after(500, _auto_fill_label_from_path)
+
+        def _auto_fill_label_from_path() -> None:
+            guess_after_id["id"] = None
+            if label_var.get().strip():
+                return
+
+            path = path_var.get().strip()
+            if not path:
+                return
+
+            master = self.master
+            guess_fn = getattr(master, "_guess_label_from_path", None)
+            if callable(guess_fn):
+                guess = guess_fn(path)
+            else:
+                p = Path(path)
+                guess = p.stem or p.name
+
+            if guess:
+                label_var.set(guess)
+
+        path_var.trace_add("write", _schedule_auto_fill)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.grid(row=2, column=0, columnspan=3, sticky="e", pady=(4, 0))
+
+        def _on_ok() -> None:
+            label = label_var.get().strip()
+            path = path_var.get().strip()
+            if not label or not path:
+                messagebox.showwarning("入力不足", "表示名とファイルパスは必須です。", parent=top)
+                return
+
+            key = current_key or ""
+            if not key:
+                master = self.master
+                gen_key = getattr(master, "_generate_resource_key", None)
+                if callable(gen_key):
+                    key = gen_key(label, "file", files)
+                else:
+                    key = label
+
+            files[key] = {"label": label, "path": path}
+
+            new_keys = sorted(files.keys())
+            new_displays = []
+            for k in new_keys:
+                item = files.get(k) or {}
+                new_displays.append(item.get("label") or k)
+
+            if field_name in self.field_vars:
+                v2, f2 = self.field_vars[field_name]
+                f2["keys"] = new_keys
+                f2["display_values"] = new_displays
+
+            combo["values"] = new_displays
+            disp_new = files[key].get("label") or key
+            target_var.set(disp_new)
+
+            self._save_resources_from_editor()
+            top.destroy()
+            try:
+                self.deiconify()
+                self.lift()
+                self.focus_force()
+            except Exception:
+                pass
+
+        def _on_cancel() -> None:
+            top.destroy()
+            try:
+                self.deiconify()
+                self.lift()
+                self.focus_force()
+            except Exception:
+                pass
+
+        ttk.Button(btn_frame, text="OK", command=_on_ok).grid(row=0, column=0, padx=4)
+        ttk.Button(btn_frame, text="キャンセル", command=_on_cancel).grid(row=0, column=1, padx=4)
+
+        path_entry.focus_set()
 
     def _capture_xy(self) -> None:
         if self._x_var is None or self._y_var is None:
@@ -513,9 +919,25 @@ class StepEditor(tk.Toplevel):
                 messagebox.showwarning("入力不足", f"「{field.get('label', fname)}」を入力してください。", parent=self)
                 return
 
+            # ★ リソース系だけ、表示名→キーへの変換を挟む
+            rtype = field.get("resource_type")
+            if rtype in ("site", "file"):
+                displays = field.get("display_values") or []
+                keys = field.get("keys") or []
+                value: Any = raw
+                if displays and keys and len(displays) == len(keys):
+                    try:
+                        idx = displays.index(raw)
+                        value = keys[idx]  # ← paramsには key を入れる
+                    except ValueError:
+                        # 万が一見つからなければそのまま raw を使う
+                        value = raw
+                params[fname] = value
+                continue
+
             try:
                 if ftype == "int":
-                    value: Any = int(raw)
+                    value = int(raw)
                 elif ftype == "float":
                     value = float(raw)
                 elif ftype == "list_str":
@@ -546,7 +968,6 @@ class StepEditor(tk.Toplevel):
 
     def get_result(self) -> Optional[Dict[str, Any]]:
         return self._result
-
 
 class CoordinateCapture(tk.Toplevel):
     """
@@ -604,7 +1025,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("AVANTIXRPA Launcher")
-        self.geometry("980x560")
+        self.geometry("1100x650")  # 好きなサイズでOK
 
         self.style = ttk.Style()
         try:
@@ -612,6 +1033,95 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         except Exception:
             pass
         self.option_add("*Font", "{Meiryo UI} 9")
+
+        # ★ ロゴ画像の読み込み（あれば使う）
+        self.logo_image: Optional[tk.PhotoImage] = None
+        try:
+            if LOGO_FILE.exists():
+                original = tk.PhotoImage(file=str(LOGO_FILE))
+
+                # サイズが大きい場合は自動で縮小 (例: 幅300pxを上限にする)
+                max_width = 300
+                if original.width() > max_width:
+                    scale = int(original.width() / max_width)
+                    if scale < 1:
+                        scale = 1
+                    self.logo_image = original.subsample(scale)
+                else:
+                    self.logo_image = original
+
+            else:
+                print(f"[RPA] ロゴ画像が見つかりません: {LOGO_FILE}")
+
+        except Exception as exc:
+            print(f"[RPA] ロゴ画像の読み込みに失敗しました: {exc}")
+
+        # ===== カラーパレット =====
+        base_bg = "#e1e1e1"   # ウィンドウ全体の背景（床）
+        panel_bg = "#ffffff"  # ヘッダやカードの背景（白）
+
+        # ウィンドウ自体の背景
+        self.configure(bg=base_bg)
+
+        # デフォルト Frame / ベース用
+        self.style.configure("TFrame", background=base_bg)
+        self.style.configure("Main.TFrame", background=base_bg)
+
+        # ヘッダ（ロゴの下は白にして PNG を活かす）
+        self.style.configure(
+            "AppHeader.TFrame",
+            background=base_bg,
+        )
+        self.style.configure(
+            "AppHeader.TLabel",
+            background=base_bg,
+            font=("{Meiryo UI}", 11, "bold"),
+        )
+
+        # カード（中央のフロー一覧 / ログ）
+        self.style.configure(
+            "Card.TFrame",
+            relief="groove",
+            borderwidth=1,
+            background=panel_bg,
+        )
+
+        # フッター
+        self.style.configure(
+            "Footer.TLabel",
+            font=("{Meiryo UI}", 8),
+            foreground="#888888",
+            background=base_bg,
+        )
+
+        # Notebook 周りの背景も揃える
+        self.style.configure("TNotebook", background=base_bg, borderwidth=0)
+        self.style.configure("TNotebook.Tab", padding=(8, 4))
+
+
+        # ★ ウィンドウ全体のグリッド設定
+        self.columnconfigure(0, weight=1)
+        # row=0 にヘッダー、row=1 に Notebook を置く想定
+        self.rowconfigure(1, weight=1)
+
+        # ★ ウィンドウ上部のヘッダー（ロゴ + タイトル）
+        self.header_frame = ttk.Frame(self, padding=(8, 8, 8, 4), style="AppHeader.TFrame")
+        self.header_frame.grid(row=0, column=0, sticky="ew")
+        self.header_frame.columnconfigure(1, weight=1)
+
+        if self.logo_image is not None:
+            ttk.Label(self.header_frame, image=self.logo_image,style="AppHeader.TLabel").grid(row=0, column=0, sticky="w")
+            ttk.Label(
+                self.header_frame,
+                text="AVANTIXRPA Launcher",
+                style="AppHeader.TLabel",
+            ).grid(row=0, column=1, sticky="w", padx=(8, 0))
+        else:
+            ttk.Label(
+                self.header_frame,
+                text="AVANTIXRPA Launcher",
+                style="AppHeader.TLabel",
+            ).grid(row=0, column=0, sticky="w")
 
         self.engine = Engine(BUILTIN_ACTIONS)
         self._running_thread: Optional[threading.Thread] = None
@@ -729,47 +1239,69 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
     def _create_widgets(self) -> None:
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)
+        # 行の weight は __init__ で設定
 
         # ★ Notebook とタブをインスタンス変数で保持しておく
         self.notebook = ttk.Notebook(self)
-        self.notebook.grid(row=0, column=0, sticky="nsew")
+        # ヘッダーの下（row=1）に配置
+        self.notebook.grid(row=1, column=0, sticky="nsew")
 
-        self.flow_tab = ttk.Frame(self.notebook)
-        self.resource_tab = ttk.Frame(self.notebook)
-        self.editor_tab = ttk.Frame(self.notebook)
+        self.flow_tab = ttk.Frame(self.notebook, style="Main.TFrame")
+        self.resource_tab = ttk.Frame(self.notebook, style="Main.TFrame")
+        self.editor_tab = ttk.Frame(self.notebook, style="Main.TFrame")
 
         self.notebook.add(self.flow_tab, text="フロー実行")
         self.notebook.add(self.resource_tab, text="リソース管理")
-        self.notebook.add(self.editor_tab, text="フローを作成する（β）")
+        self.notebook.add(self.editor_tab, text="フローを作成・編集")
 
         self._create_flow_tab(self.flow_tab)
         self._create_resource_tab(self.resource_tab)
         self._create_flow_editor_tab(self.editor_tab)
 
-        status_frame = ttk.Frame(self)
-        status_frame.grid(row=1, column=0, sticky="ew")
+        status_frame = ttk.Frame(self, padding=(8, 2), style="Main.TFrame")
+        status_frame.grid(row=2, column=0, sticky="ew")
         status_frame.columnconfigure(0, weight=1)
 
         self.status_label = ttk.Label(status_frame, text="準備完了")
         self.status_label.grid(row=0, column=0, sticky="w", padx=8)
 
-        bottom = ttk.Frame(self)
-        bottom.grid(row=2, column=0, sticky="ew", pady=(2, 4))
+        bottom = ttk.Frame(self, style="Main.TFrame")
+        bottom.grid(row=3, column=0, sticky="ew", pady=(2, 4))
         bottom.columnconfigure(0, weight=1)
 
         coord_btn = ttk.Button(bottom, text="マウス座標キャプチャ", command=self._open_coord_capture)
         coord_btn.grid(row=0, column=0, sticky="w", padx=(8, 0))
 
-        self.run_button = ttk.Button(bottom, text="選択フロー実行", command=self._on_run_clicked)
+        self.run_button = ttk.Button(bottom, text="▶ フローを実行", command=self._on_run_clicked,)
         self.run_button.grid(row=0, column=1, padx=(8, 0))
 
         self.reload_button = ttk.Button(bottom, text="フロー再読み込み", command=self._load_flows_list)
         self.reload_button.grid(row=0, column=2, padx=(8, 0))
 
+        # ★ フッター（コピーライト表示）
+        footer = ttk.Frame(self)
+        footer.grid(row=4, column=0, sticky="ew")
+        footer.columnconfigure(0, weight=1)
+
+        footer_label = ttk.Label(
+            footer,
+            text=APP_COPYRIGHT,
+            anchor="center",      # ← ここを center に
+            style="Footer.TLabel",
+        )
+        footer_label.grid(row=0, column=0, sticky="ew", padx=8)  # ← sticky を "ew" に
+
     def _create_flow_tab(self, tab: ttk.Frame) -> None:
-        left_frame = ttk.Frame(tab, padding=(0, 0, 8, 0))
-        left_frame.grid(row=0, column=0, rowspan=2, sticky="nsew")
+        # タブ全体のグリッド設定（ヘッダーはウィンドウ共通なのでここには置かない）
+        tab.rowconfigure(0, weight=1)
+        tab.columnconfigure(0, weight=1)
+        tab.columnconfigure(1, weight=1)
+
+        # --------------------------------------------------
+        # 左側：フロー一覧
+        # --------------------------------------------------
+        left_frame = ttk.Frame(tab, padding=8, style="Card.TFrame")
+        left_frame.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=(8, 4), pady=8)
         left_frame.rowconfigure(1, weight=1)
         left_frame.rowconfigure(2, weight=0)
         left_frame.rowconfigure(3, weight=0)
@@ -812,8 +1344,11 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         edit_btn = ttk.Button(left_frame, text="選択フローを編集（エディタ）", command=self._on_edit_flow_from_list)
         edit_btn.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
 
-        right_frame = ttk.Frame(tab)
-        right_frame.grid(row=0, column=1, sticky="nsew")
+        # --------------------------------------------------
+        # 右側：ログエリア
+        # --------------------------------------------------
+        right_frame = ttk.Frame(tab, padding=8, style="Card.TFrame")
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(4, 8), pady=8)
         right_frame.rowconfigure(1, weight=1)
         right_frame.columnconfigure(0, weight=1)
 
@@ -945,7 +1480,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             row=0, column=1, sticky="ew", padx=4, pady=2
         )
 
-        ttk.Label(top_frame, text="エラー時の動き（全体）").grid(row=1, column=0, sticky="e", padx=4, pady=2)
+        ttk.Label(top_frame, text="エラー時の動き（フロー全体）").grid(row=1, column=0, sticky="e", padx=4, pady=2)
         on_error_combo = ttk.Combobox(
             top_frame,
             textvariable=self.edit_on_error_var,
@@ -971,11 +1506,11 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         btn_frame_steps = ttk.Frame(middle_frame)
         btn_frame_steps.grid(row=0, column=2, sticky="ns", padx=4, pady=4)
 
-        ttk.Button(btn_frame_steps, text="ステップ追加", command=self._editor_add_step).grid(row=0, column=0, pady=2)
-        ttk.Button(btn_frame_steps, text="選択ステップ編集", command=self._editor_edit_step).grid(row=1, column=0, pady=2)
-        ttk.Button(btn_frame_steps, text="選択ステップ削除", command=self._editor_delete_step).grid(row=2, column=0, pady=2)
-        ttk.Button(btn_frame_steps, text="上へ", command=lambda: self._editor_move_step(-1)).grid(row=3, column=0, pady=2)
-        ttk.Button(btn_frame_steps, text="下へ", command=lambda: self._editor_move_step(1)).grid(row=4, column=0, pady=2)
+        ttk.Button(btn_frame_steps, text="ステップを追加", command=self._editor_add_step).grid(row=0, column=0, pady=2)
+        ttk.Button(btn_frame_steps, text="選択したステップを編集", command=self._editor_edit_step).grid(row=1, column=0, pady=2)
+        ttk.Button(btn_frame_steps, text="選択したステップを削除", command=self._editor_delete_step).grid(row=2, column=0, pady=2)
+        ttk.Button(btn_frame_steps, text="上へ移動", command=lambda: self._editor_move_step(-1)).grid(row=3, column=0, pady=2)
+        ttk.Button(btn_frame_steps, text="下へ移動", command=lambda: self._editor_move_step(1)).grid(row=4, column=0, pady=2)
 
         bottom_frame = ttk.Frame(tab)
         bottom_frame.grid(row=3, column=0, sticky="ew", padx=8, pady=(4, 8))
@@ -1034,15 +1569,35 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
                     "enabled": enabled,
                 }
             )
-            flow_name = f"{name} ({p.name})" if enabled else f"[無効] {name} ({p.name})"
+            # 表示はフロー名だけにする（ファイル名 *.yaml は隠す）
+            flow_name = name if enabled else f"[無効] {name}"
             self.flows_listbox.insert(tk.END, flow_name)
 
         self._append_log(f"[INFO] フロー一覧を読み込みました ({len(self._flow_entries)} 件)")
         self.status_label.config(text="フロー一覧を更新しました")
 
     def _append_log(self, message: str) -> None:
+        """
+        実行ログをテキストエリアに追記する。
+        先頭に [INFO] などのタグがあれば色分けし、時刻も付ける。
+        """
+        # ログ種別を判定（[INFO] / [RUN] / [ERROR] / [DONE] / [DELETE]）
+        level_tag: Optional[str] = None
+        if message.startswith("[") and "]" in message:
+            level = message[1 : message.index("]")]
+            if level in ("INFO", "RUN", "ERROR", "DONE", "DELETE"):
+                level_tag = level
+
+        # 時刻を付ける
+        ts = datetime.now().strftime("%H:%M:%S")
+        line = f"{ts} {message}"
+
         self.log_text.config(state="normal")
-        self.log_text.insert(tk.END, message + "\n")
+        if level_tag:
+            # レベルタグがあれば、そのタグで色分け
+            self.log_text.insert(tk.END, line + "\n", (level_tag,))
+        else:
+            self.log_text.insert(tk.END, line + "\n")
         self.log_text.see(tk.END)
         self.log_text.config(state="disabled")
 
@@ -1756,7 +2311,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             return
         sel = self.edit_steps_list.curselection()
         if not sel:
-            messagebox.showinfo("選択なし", "編集するステップを選択してください。")
+            messagebox.showinfo("ステップ未選択", "編集するステップを一覧から選択してください。")
             return
         idx = sel[0]
         if idx < 0 or idx >= len(self.edit_steps):
@@ -1877,15 +2432,117 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         self.status_label.config(text=f"フローを読み込みました: {path.name}")
 
     def _refresh_edit_steps_list(self) -> None:
+        """ステップ一覧の表示を、人間が読める日本語ベースに整える。"""
         self.edit_steps_list.delete(0, tk.END)
+
+        # アクションID → 日本語ラベル
+        ACTION_LABELS = {
+            "print": "メッセージを表示する",
+            "wait": "指定秒数だけ待つ",
+            "browser.open": "ブラウザでURLを開く",
+            "resource.open_site": "登録済みサイトを開く",
+            "resource.open_file": "登録済みファイルを開く",
+            "run.program": "プログラムを起動する",
+            "ui.type": "文字を入力する",
+            "ui.hotkey": "キー操作を送る",
+            "ui.move": "マウスを座標へ移動する",
+            "ui.click": "マウスクリックする",
+            "ui.scroll": "画面をスクロールする",
+            "file.copy": "ファイルをコピーする",
+            "file.move": "ファイルを移動する",
+        }
+
+        sites = (self.resources or {}).get("sites", {})
+        files = (self.resources or {}).get("files", {})
+
         for i, step in enumerate(self.edit_steps, start=1):
             action = step.get("action", "?")
-            params = step.get("params", {})
+            params = step.get("params") or {}
             on_error = step.get("on_error")
-            label = f"{i}. {action} {params}"
+
+            base_label = ACTION_LABELS.get(action, action)
+
+            # ざっくり内容の要約を作る
+            summary = ""
+
+            if action == "print":
+                msg = str(params.get("message", "")).strip()
+                if msg:
+                    short = msg[:30]
+                    if len(msg) > 30:
+                        short += "…"
+                    summary = f"「{short}」"
+
+            elif action == "wait":
+                sec = params.get("seconds")
+                if sec is not None:
+                    summary = f"{sec} 秒待つ"
+
+            elif action == "browser.open":
+                url = str(params.get("url", "")).strip()
+                if url:
+                    summary = url
+
+            elif action == "resource.open_site":
+                key = params.get("key")
+                item = sites.get(key, {}) if key else {}
+                label = item.get("label") or str(key or "")
+                if label:
+                    summary = f"{label}（サイト）"
+
+            elif action == "resource.open_file":
+                key = params.get("key")
+                item = files.get(key, {}) if key else {}
+                label = item.get("label") or str(key or "")
+                if label:
+                    summary = f"{label}（ファイル）"
+
+            elif action == "run.program":
+                prog = str(params.get("program", "")).strip()
+                if prog:
+                    summary = prog
+
+            elif action == "ui.type":
+                txt = str(params.get("text", "")).strip()
+                if txt:
+                    short = txt[:20]
+                    if len(txt) > 20:
+                        short += "…"
+                    summary = f"「{short}」を入力"
+
+            elif action == "ui.hotkey":
+                keys = params.get("keys") or []
+                if isinstance(keys, list) and keys:
+                    summary = "+".join(keys)
+
+            elif action in ("ui.move", "ui.click", "ui.scroll"):
+                x = params.get("x")
+                y = params.get("y")
+                pos = ""
+                if x is not None and y is not None:
+                    pos = f"({x}, {y})"
+                if action == "ui.scroll":
+                    amount = params.get("amount")
+                    if amount is not None:
+                        summary = f"{pos} amount={amount}" if pos else f"amount={amount}"
+                else:
+                    if pos:
+                        summary = pos
+
+            elif action in ("file.copy", "file.move"):
+                src = params.get("src")
+                dst = params.get("dst")
+                if src and dst:
+                    summary = f"{src} → {dst}"
+
+            # 最終的な表示文字列を組み立てる
+            text = f"{i}. {base_label}"
+            if summary:
+                text += f" - {summary}"
             if on_error:
-                label += f" (on_error={on_error})"
-            self.edit_steps_list.insert(tk.END, label)
+                text += f"  [エラー時: {on_error}]"
+
+            self.edit_steps_list.insert(tk.END, text)
 
     def _editor_new_flow(self) -> None:
         """フローエディタをリセットして、新規作成モードにする。"""
@@ -1896,19 +2553,103 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         self.current_edit_flow_path = None
         self.status_label.config(text="新しいフローの作成を開始しました")
 
+    # ------------------------------------------------------------
+    # フロー作成タブから使う「既存フロー選択」用の小さなダイアログ
+    # ------------------------------------------------------------
+    def _choose_flow_for_edit(self) -> Optional[Path]:
+        """
+        フロー実行タブと同じ一覧（self._flow_entries）から、
+        エディタで編集するフローを選ばせるダイアログを出す。
+        選ばれたフローの Path を返し、キャンセル時は None を返す。
+        """
+        # 一覧を最新状態にしておく
+        self._load_flows_list()
+
+        if not self._flow_entries:
+            messagebox.showinfo(
+                "フローがありません",
+                "flows フォルダにフローがありません。\n先にフローを作成してください。",
+                parent=self,
+            )
+            return None
+
+        dlg = tk.Toplevel(self)
+        dlg.title("編集するフローを選択")
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        dlg.grab_set()
+
+        frame = ttk.Frame(dlg, padding=8)
+        frame.grid(row=0, column=0, sticky="nsew")
+        frame.rowconfigure(1, weight=1)
+        frame.columnconfigure(0, weight=1)
+
+        ttk.Label(frame, text="編集するフローを選択してください").grid(
+            row=0, column=0, sticky="w", padx=4, pady=(0, 4)
+        )
+
+        lb = tk.Listbox(frame, height=12)
+        lb.grid(row=1, column=0, sticky="nsew", padx=(0, 4), pady=(0, 4))
+
+        scroll = ttk.Scrollbar(frame, orient="vertical", command=lb.yview)
+        scroll.grid(row=1, column=1, sticky="ns", pady=(0, 4))
+        lb.config(yscrollcommand=scroll.set)
+
+        # 表示は「フロー名だけ」 or 「[無効] フロー名」
+        for entry in self._flow_entries:
+            name = entry.get("name", "")
+            enabled = entry.get("enabled", True)
+            label = name if enabled else f"[無効] {name}"
+            lb.insert(tk.END, label)
+
+        # すでに何か編集中なら、そのフローを初期選択にする
+        if self.current_edit_flow_path is not None:
+            for idx, entry in enumerate(self._flow_entries):
+                if entry.get("file") == self.current_edit_flow_path:
+                    lb.selection_set(idx)
+                    lb.see(idx)
+                    break
+        else:
+            lb.selection_set(0)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.grid(row=2, column=0, columnspan=2, sticky="e")
+
+        selected: list[Optional[Path]] = [None]
+
+        def _on_ok() -> None:
+            sel = lb.curselection()
+            if not sel:
+                messagebox.showwarning("フロー未選択", "編集するフローを一覧から選択してください。", parent=dlg)
+                return
+            idx = sel[0]
+            if idx >= len(self._flow_entries):
+                messagebox.showerror("エラー", "内部データと一覧がずれています。", parent=dlg)
+                return
+            selected[0] = self._flow_entries[idx]["file"]
+            dlg.destroy()
+
+        def _on_cancel() -> None:
+            dlg.destroy()
+
+        ttk.Button(btn_frame, text="OK", command=_on_ok).grid(row=0, column=0, padx=4, pady=(4, 0))
+        ttk.Button(btn_frame, text="キャンセル", command=_on_cancel).grid(
+            row=0, column=1, padx=4, pady=(4, 0)
+        )
+
+        # ダブルクリックでも OK
+        lb.bind("<Double-Button-1>", lambda e: _on_ok())
+
+        self.wait_window(dlg)
+        return selected[0]
+
     def _editor_load_flow(self) -> None:
-        """flows ディレクトリから既存フロー(YAML)を読み込んでエディタに反映する。"""
+        """既存フロー一覧から1つ選んで、エディタに読み込む。"""
         FLOWS_DIR.mkdir(parents=True, exist_ok=True)
 
-        path_str = filedialog.askopenfilename(
-            title="編集するフローを選択",
-            initialdir=FLOWS_DIR,
-            filetypes=[("フローファイル", "*.yaml *.yml"), ("すべてのファイル", "*.*")],
-        )
-        if not path_str:
+        path = self._choose_flow_for_edit()
+        if path is None:
             return
-
-        path = Path(path_str)
 
         try:
             with path.open("r", encoding="utf-8") as f:
@@ -1921,15 +2662,10 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             messagebox.showerror("形式エラー", "フローファイルの形式が不正です。")
             return
 
-        name = data.get("name", "") or ""
-        on_error = data.get("on_error", "stop") or "stop"
+        name = data.get("name") or ""
+        on_error = data.get("on_error") or "stop"
         steps_raw = data.get("steps") or []
 
-        if not isinstance(steps_raw, list):
-            messagebox.showerror("形式エラー", "steps が配列ではありません。このフローは編集できません。")
-            return
-
-        # 編集状態に反映
         self.edit_flow_name_var.set(name)
         self.edit_on_error_var.set(on_error)
 
@@ -1950,11 +2686,8 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
             self.edit_steps.append(step_data)
 
-        self._refresh_edit_steps_list()
-
-        # 以後の保存はこのファイルに上書き
         self.current_edit_flow_path = path
-
+        self._refresh_edit_steps_list()
         self.status_label.config(text=f"フローを読み込みました: {path.name}")
 
     def _editor_save_flow(self) -> None:

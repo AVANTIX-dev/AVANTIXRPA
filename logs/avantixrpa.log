@@ -578,3 +578,61 @@ OSError: [WinError 193] %1 は有効な Win32 アプリケーションではあ�
 2025-12-02 17:15:36,655 [INFO] avantixrpa.engine - Step 4: print (on_error=stop)
 2025-12-02 17:15:36,656 [INFO] avantixrpa.engine - Step 4 completed: print
 2025-12-02 17:15:36,656 [INFO] avantixrpa.engine - Flow finished
+2025-12-03 14:28:29,320 [INFO] avantixrpa.engine - Start flow: すきゃんんん (on_error=stop)
+2025-12-03 14:28:29,321 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-03 14:28:29,339 [INFO] avantixrpa.engine - Step 1 completed: run.program
+2025-12-03 14:28:29,339 [INFO] avantixrpa.engine - Flow finished
+2025-12-03 15:44:22,661 [INFO] avantixrpa.engine - Start flow: ぱいせえええええええええん (on_error=stop)
+2025-12-03 15:44:22,662 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-03 15:44:22,733 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-03 15:44:22,733 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-03 15:44:24,908 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-03 15:44:24,909 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-03 15:44:26,909 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-03 15:44:26,911 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-12-03 15:44:27,023 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-12-03 15:44:27,024 [INFO] avantixrpa.engine - Flow finished
+2025-12-03 15:44:50,305 [INFO] avantixrpa.engine - Start flow: スキャン (on_error=stop)
+2025-12-03 15:44:50,306 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-03 15:44:50,315 [INFO] avantixrpa.engine - Step 1 completed: run.program
+2025-12-03 15:44:50,316 [INFO] avantixrpa.engine - Flow finished
+2025-12-05 14:42:29,850 [INFO] avantixrpa.engine - Start flow: ぱいせえええええええええん (on_error=stop)
+2025-12-05 14:42:29,851 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-05 14:42:29,921 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-05 14:42:29,921 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-05 14:42:32,102 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-05 14:42:32,103 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-05 14:42:34,105 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-05 14:42:34,106 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-12-05 14:42:34,227 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-12-05 14:42:34,228 [INFO] avantixrpa.engine - Flow finished
+2025-12-05 14:44:24,238 [INFO] avantixrpa.engine - Start flow: ぱいせえええええええええん (on_error=stop)
+2025-12-05 14:44:24,239 [INFO] avantixrpa.engine - Step 1: resource.open_site (on_error=stop)
+2025-12-05 14:44:24,265 [INFO] avantixrpa.engine - Step 1 completed: resource.open_site
+2025-12-05 14:44:24,266 [INFO] avantixrpa.engine - Step 2: ui.move (on_error=stop)
+2025-12-05 14:44:26,442 [INFO] avantixrpa.engine - Step 2 completed: ui.move
+2025-12-05 14:44:26,443 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-05 14:44:28,444 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-05 14:44:28,445 [INFO] avantixrpa.engine - Step 4: ui.click (on_error=stop)
+2025-12-05 14:44:28,563 [INFO] avantixrpa.engine - Step 4 completed: ui.click
+2025-12-05 14:44:28,565 [INFO] avantixrpa.engine - Flow finished
+2025-12-05 16:54:43,409 [INFO] avantixrpa.engine - Start flow: ぱいせんのちゃんねる (on_error=stop)
+2025-12-05 16:54:43,410 [INFO] avantixrpa.engine - Step 1: browser.open (on_error=stop)
+2025-12-05 16:54:43,485 [INFO] avantixrpa.engine - Step 1 completed: browser.open
+2025-12-05 16:54:43,485 [INFO] avantixrpa.engine - Step 2: browser.open (on_error=stop)
+2025-12-05 16:54:43,504 [INFO] avantixrpa.engine - Step 2 completed: browser.open
+2025-12-05 16:54:43,505 [INFO] avantixrpa.engine - Flow finished
+2025-12-05 16:55:09,248 [INFO] avantixrpa.engine - Start flow: スクロールテスト (on_error=stop)
+2025-12-05 16:55:09,249 [INFO] avantixrpa.engine - Step 1: wait (on_error=stop)
+2025-12-05 16:55:11,250 [INFO] avantixrpa.engine - Step 1 completed: wait
+2025-12-05 16:55:11,251 [INFO] avantixrpa.engine - Step 2: ui.scroll (on_error=stop)
+2025-12-05 16:55:11,353 [INFO] avantixrpa.engine - Step 2 completed: ui.scroll
+2025-12-05 16:55:11,357 [INFO] avantixrpa.engine - Step 3: wait (on_error=stop)
+2025-12-05 16:55:12,358 [INFO] avantixrpa.engine - Step 3 completed: wait
+2025-12-05 16:55:12,360 [INFO] avantixrpa.engine - Step 4: ui.scroll (on_error=stop)
+2025-12-05 16:55:12,462 [INFO] avantixrpa.engine - Step 4 completed: ui.scroll
+2025-12-05 16:55:12,464 [INFO] avantixrpa.engine - Flow finished
+2025-12-05 16:55:26,120 [INFO] avantixrpa.engine - Start flow: すきゃんんん (on_error=stop)
+2025-12-05 16:55:26,120 [INFO] avantixrpa.engine - Step 1: run.program (on_error=stop)
+2025-12-05 16:55:26,137 [INFO] avantixrpa.engine - Step 1 completed: run.program
+2025-12-05 16:55:26,137 [INFO] avantixrpa.engine - Flow finished
