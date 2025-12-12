@@ -1,7 +1,13 @@
 from typing import Dict, Type, Optional, Any
+import threading
 
 from avantixrpa.actions.base import ActionBase
 from avantixrpa.logging.logger import get_logger
+
+
+class FlowStoppedException(Exception):
+    """フロー実行が中断されたときに投げる例外。"""
+    pass
 
 
 class Engine:
@@ -26,6 +32,7 @@ class Engine:
     def __init__(self, actions: Dict[str, Type[ActionBase]]):
         self.actions = actions
         self.logger = get_logger("avantixrpa.engine")
+        self.stop_event: Optional[threading.Event] = None  # ★ 中断用イベント
 
     def run_flow(self, flow_def: dict, context: Optional[dict] = None) -> None:
         if context is None:
@@ -47,6 +54,13 @@ class Engine:
             raise ValueError("flow_def['steps'] must be a list")
 
         for idx, step in enumerate(steps, start=1):
+            # ★ 各ステップ実行前に中断チェック
+            if self.stop_event and self.stop_event.is_set():
+                stop_msg = f"Flow stopped by user at step {idx}"
+                print(f"[ENGINE] {stop_msg}")
+                self.logger.info(stop_msg)
+                raise FlowStoppedException(stop_msg)
+
             action_id = step.get("action")
             params: dict = step.get("params") or {}
 

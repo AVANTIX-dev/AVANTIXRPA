@@ -1,0 +1,10 @@
+name: ぱいせんのちゃんねる
+on_error: stop
+steps:
+- action: browser.open
+  params:
+    url: https://www.youtube.com/@fledge565
+  on_error: stop
+- action: browser.open
+  params:
+    url: https://www.youtube.com/watch?v=rxMthXdMGSk

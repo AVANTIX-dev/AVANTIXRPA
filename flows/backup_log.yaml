@@ -1,16 +1,15 @@
 name: AVANTIXRPA - Log backup sample
+on_error: stop
 steps:
-  - action: print
-    params:
-      prefix: "[AVANTIXRPA]"
-      message: "ログファイルのバックアップを開始します。"
-
-  - action: file.copy
-    params:
-      src: "{AVANTIX_ROOT}/test_data/source/sample_log.txt"
-      dst: "{DESKTOP}/AVANTIX_BACKUP/sample_log_backup.txt"
-
-  - action: print
-    params:
-      prefix: "[AVANTIXRPA]"
-      message: "バックアップが完了しました。"
+- action: print
+  params:
+    prefix: '[AVANTIXRPA]'
+    message: ログファイルのバックアップを開始します。
+- action: file.copy
+  params:
+    src: '{AVANTIX_ROOT}/test_data/source/sample_log.txt'
+    dst: '{DESKTOP}/AVANTIX_BACKUP/sample_log_backup.txt'
+- action: print
+  params:
+    prefix: '[AVANTIXRPA]'
+    message: バックアップが完了しました。

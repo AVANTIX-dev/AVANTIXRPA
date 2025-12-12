@@ -5,7 +5,7 @@ from .wait_action import WaitAction
 from .file_actions import FileCopyAction, FileMoveAction
 from .run_program_action import RunProgramAction
 from .browser_actions import BrowserOpenAction
-from .ui_actions import UiTypeAction, UiHotkeyAction, UiMoveAction, UiClickAction, UiScrollAction
+from .ui_actions import UiTypeAction, UiHotkeyAction, UiMoveAction, UiClickAction, UiScrollAction, PauseAction
 from .resource_actions import ResourceOpenSiteAction, ResourceOpenFileAction
 
 
@@ -26,4 +26,5 @@ BUILTIN_ACTIONS = {
     "ui.scroll": UiScrollAction,
     "resource.open_site": ResourceOpenSiteAction,
     "resource.open_file": ResourceOpenFileAction,
+    "pause": PauseAction,
 }

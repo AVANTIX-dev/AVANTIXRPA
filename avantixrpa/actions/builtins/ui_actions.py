@@ -1,4 +1,5 @@
 from typing import Dict, Any
+import time
 
 try:
     import pyautogui
@@ -18,12 +19,64 @@ def _ensure_pyautogui():
             " 'py -m pip install pyautogui' を実行してください。"
         )
 
+
+def _handle_delay(params: Dict[str, Any]) -> None:
+    """delayパラメータがあれば指定秒数待機する。"""
+    delay = params.get("delay")
+    if delay is not None:
+        try:
+            delay_sec = float(delay)
+            if delay_sec > 0:
+                print(f"[RPA] 実行前待機: {delay_sec} 秒")
+                time.sleep(delay_sec)
+        except (TypeError, ValueError):
+            pass
+
+
+class PauseAction(ActionBase):
+    """一時停止アクション。ダイアログで「OK」を押すまで待機する。
+
+    例:
+      - action: pause
+        params:
+          message: "紙をセットしてOKを押してください"
+    """
+
+    id = "pause"
+
+    def execute(self, context: Dict[str, Any], params: Dict[str, Any]) -> None:
+        import tkinter as tk
+        from tkinter import messagebox
+
+        message = params.get("message", "準備ができたら「OK」を押してください")
+
+        print(f"[RPA] 一時停止: {message}")
+
+        # ダイアログを表示（最前面に、ちゃんと待機する）
+        root = tk.Tk()
+        root.withdraw()  # メインウィンドウを隠す
+        root.lift()  # 前面に
+        root.attributes("-topmost", True)  # 最前面に固定
+        root.focus_force()  # フォーカスを強制
+        
+        # メッセージボックスを表示（これがOK押されるまでブロックする）
+        result = messagebox.showinfo(
+            "AVANTIXRPA - 一時停止", 
+            message + "\n\n（OKを押すと続行します）",
+            parent=root
+        )
+        
+        root.destroy()
+        print("[RPA] 再開します")
+
+
 class UiScrollAction(ActionBase):
     """マウスホイールで画面をスクロールするアクション。
 
     例:
       - action: ui.scroll
         params:
+          delay: 0.5     # 実行前に待機（任意）
           amount: -500   # 下方向にスクロール（プラスで上 / マイナスで下）
           x: 960         # 任意。省略時は現在のマウス位置
           y: 540
@@ -33,6 +86,7 @@ class UiScrollAction(ActionBase):
 
     def execute(self, context: Dict[str, Any], params: Dict[str, Any]) -> None:
         _ensure_pyautogui()
+        _handle_delay(params)
 
         amount = params.get("amount")
         if amount is None:
@@ -60,6 +114,7 @@ class UiMoveAction(ActionBase):
     例:
       - action: ui.move
         params:
+          delay: 0.5   # 実行前に待機（任意）
           x: 100
           y: 200
           duration: 0.2
@@ -69,6 +124,8 @@ class UiMoveAction(ActionBase):
 
     def execute(self, context: Dict[str, Any], params: Dict[str, Any]) -> None:
         _ensure_pyautogui()
+        _handle_delay(params)
+
         x = params.get("x")
         y = params.get("y")
         duration = float(params.get("duration", 0.0))
@@ -86,6 +143,7 @@ class UiClickAction(ActionBase):
     例:
       - action: ui.click
         params:
+          delay: 0.5   # 実行前に待機（任意）
           x: 100       # 省略すると現在位置
           y: 200
           button: "left"
@@ -96,6 +154,8 @@ class UiClickAction(ActionBase):
 
     def execute(self, context: Dict[str, Any], params: Dict[str, Any]) -> None:
         _ensure_pyautogui()
+        _handle_delay(params)
+
         x = params.get("x")
         y = params.get("y")
         button = params.get("button", "left")

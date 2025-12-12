@@ -1,0 +1,23 @@
+name: AVANTIXRPA - UI click test
+on_error: stop
+
+steps:
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "マウス移動＆クリックテストを開始します。"
+
+  # ここに「押したい場所の座標」を入れる（例：X=500, Y=300）
+  - action: ui.move
+    params:
+      x: 500
+      y: 300
+      duration: 0.3   # ちょっとだけスーッと動く
+
+  - action: wait
+    params:
+      seconds: 0.2
+
+  - action: ui.click
+    params:
+      button: "left"

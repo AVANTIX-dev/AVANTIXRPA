@@ -1,0 +1,19 @@
+name: スクロールテスト
+on_error: stop
+
+steps:
+  - action: wait
+    params:
+      seconds: 2
+
+  - action: ui.scroll
+    params:
+      amount: -800  # 一気に下にスクロール
+
+  - action: wait
+    params:
+      seconds: 1
+
+  - action: ui.scroll
+    params:
+      amount: 800   # 上に戻す

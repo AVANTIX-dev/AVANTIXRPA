@@ -1,0 +1,27 @@
+name: AVANTIXRPA - Error handling per step
+on_error: stop   # 全体としては「エラーで停止」
+
+steps:
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "ステップ個別のエラー制御テストを開始します。"
+
+  # ここだけはエラーでも続行したい
+  - action: file.copy
+    params:
+      src: "test_data/source/NO_SUCH_FILE.txt"
+      dst: "test_data/backup/should_not_exist.txt"
+    continue_on_error: true   # ★このステップだけ continue
+
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "continue_on_error=true のため、ここまで到達します。"
+
+  # ここは普通にエラーで止めたい
+  - action: file.copy
+    params:
+      src: "test_data/source/NO_SUCH_FILE_2.txt"
+      dst: "test_data/backup/should_not_exist_2.txt"
+    # continue_on_error 指定なし → フロー全体の on_error=stop に従い停止

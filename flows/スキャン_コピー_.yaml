@@ -1,4 +1,4 @@
-name: スキャン
+name: スキャン（コピー）
 on_error: stop
 steps:
 - action: run.program
@@ -29,10 +29,6 @@ steps:
     x: 1216
     y: 843
     duration: 0.5
-  on_error: stop
-- action: pause
-  params:
-    message: 準備ができたら「OK」を押してください
   on_error: stop
 - action: ui.click
   params:

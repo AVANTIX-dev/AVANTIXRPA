@@ -1,0 +1,19 @@
+name: AVANTIXRPA - Open browser sample
+steps:
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "ブラウザでAVANTIXテスト用のページを開きます。"
+
+  - action: browser.open
+    params:
+      url: "https://www.google.com"
+
+  - action: wait
+    params:
+      seconds: 2
+
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "ブラウザ起動フローが完了しました。"

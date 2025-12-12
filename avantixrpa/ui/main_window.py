@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import threading
@@ -6,6 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import json
 import shutil
+import zipfile
 import urllib.request
 import urllib.error
 from urllib.parse import urlparse
@@ -29,7 +29,7 @@ except ImportError:
 import yaml  # YAML から name を読む＆書く
 
 from avantixrpa.core.flow_loader import load_flow
-from avantixrpa.core.engine import Engine
+from avantixrpa.core.engine import Engine, FlowStoppedException
 from avantixrpa.config.paths import FLOWS_DIR, CONFIG_DIR, RESOURCES_FILE
 from avantixrpa.actions.builtins import BUILTIN_ACTIONS
 
@@ -38,6 +38,10 @@ TRASH_DIR = FLOWS_DIR / ".trash"
 
 # ロゴ画像（config/avantix_logo.png に置く想定）
 LOGO_FILE = CONFIG_DIR / "avantix_logo.png"
+LOGO_FILE_DARK = CONFIG_DIR / "avantix_logo_dark.png"
+
+# ★ 設定ファイル
+SETTINGS_FILE = CONFIG_DIR / "settings.json"
 
 APP_COPYRIGHT = "© 2025 Toshiki Azuma. All rights reserved."
 
@@ -52,6 +56,545 @@ DEFAULT_RESOURCES = {
 }
 
 
+class DraggableStepList(tk.Frame):
+    """
+    ドラッグ&ドロップで並び替え可能なステップリスト。
+    Canvasベースで各アイテムがヌルヌル動く。
+    フローチャート風の表示。
+    """
+    
+    ITEM_HEIGHT = 32  # 各アイテムの高さ（ボタン部分）
+    ARROW_HEIGHT = 20  # 矢印部分の高さ
+    ITEM_PADDING = 2   # アイテム間の余白
+    
+    def __init__(self, master, dark_mode: bool = False, **kwargs):
+        super().__init__(master, **kwargs)
+        
+        self._dark_mode = dark_mode
+        self._items: List[str] = []  # 表示テキストのリスト
+        self._selected_index: Optional[int] = None
+        self._item_widgets: List[dict] = []  # Canvasアイテムの情報
+        self._last_canvas_width = 0  # 前回のCanvas幅
+        
+        # ドラッグ状態
+        self._drag_data = {
+            "active": False,
+            "index": None,
+            "start_y": 0,
+            "current_y": 0,
+        }
+        
+        # 色設定
+        self._update_colors()
+        
+        # Canvas + Scrollbar
+        self.canvas = tk.Canvas(
+            self,
+            bg=self._bg,
+            highlightthickness=1,
+            highlightbackground=self._border,
+        )
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+        
+        # イベントバインド
+        self.canvas.bind("<Button-1>", self._on_click)
+        self.canvas.bind("<Double-Button-1>", self._on_double_click)
+        self.canvas.bind("<B1-Motion>", self._on_drag)
+        self.canvas.bind("<ButtonRelease-1>", self._on_drop)
+        self.canvas.bind("<Button-3>", self._on_right_click)
+        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self.canvas.bind("<Configure>", self._on_canvas_resize)  # ★リサイズ監視
+        
+        # コールバック
+        self._on_select_callback = None
+        self._on_double_click_callback = None
+        self._on_right_click_callback = None
+        self._on_reorder_callback = None
+    
+    def _on_canvas_resize(self, event) -> None:
+        """Canvasがリサイズされたら再描画"""
+        new_width = event.width
+        if new_width != self._last_canvas_width and new_width > 1:
+            self._last_canvas_width = new_width
+            self._render_items()
+    
+    def _update_colors(self) -> None:
+        """ダークモード対応の色設定"""
+        if self._dark_mode:
+            self._bg = "#505050"
+            self._fg = "#f0f0f0"
+            self._item_bg = "#606060"        # ボタン背景
+            self._item_border = "#707070"    # ボタン枠線
+            self._item_hover = "#707070"
+            self._item_selected = "#0078d7"
+            self._item_dragging = "#707070"
+            self._border = "#404040"
+            self._arrow_color = "#888888"    # 矢印の色
+        else:
+            self._bg = "#ffffff"
+            self._fg = "#333333"
+            self._item_bg = "#f8f8f8"        # ボタン背景
+            self._item_border = "#dddddd"    # ボタン枠線
+            self._item_hover = "#f0f0f0"
+            self._item_selected = "#0078d7"
+            self._item_dragging = "#ffffcc"
+            self._border = "#cccccc"
+            self._arrow_color = "#999999"    # 矢印の色
+    
+    def set_dark_mode(self, dark_mode: bool) -> None:
+        """ダークモードを切り替え"""
+        self._dark_mode = dark_mode
+        self._update_colors()
+        self.canvas.configure(bg=self._bg, highlightbackground=self._border)
+        self._render_items()
+    
+    def insert(self, index: int, text: str) -> None:
+        """アイテムを挿入"""
+        if index == tk.END or index >= len(self._items):
+            self._items.append(text)
+        else:
+            self._items.insert(index, text)
+        self._render_items()
+    
+    def delete(self, first, last=None) -> None:
+        """アイテムを削除"""
+        if first == 0 and last == tk.END:
+            self._items.clear()
+            self._selected_index = None
+        elif last is None:
+            if 0 <= first < len(self._items):
+                del self._items[first]
+                if self._selected_index == first:
+                    self._selected_index = None
+        self._render_items()
+    
+    def get(self, index) -> str:
+        """アイテムを取得"""
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return ""
+    
+    def size(self) -> int:
+        """アイテム数を返す"""
+        return len(self._items)
+    
+    def curselection(self) -> tuple:
+        """選択中のインデックスを返す"""
+        if self._selected_index is not None:
+            return (self._selected_index,)
+        return ()
+    
+    def selection_clear(self, first, last=None) -> None:
+        """選択を解除"""
+        self._selected_index = None
+        self._render_items()
+    
+    def selection_set(self, index) -> None:
+        """選択を設定"""
+        if 0 <= index < len(self._items):
+            self._selected_index = index
+            self._render_items()
+            self._ensure_visible(index)
+    
+    def _ensure_visible(self, index: int) -> None:
+        """指定インデックスが見えるようにスクロール"""
+        if not self._items:
+            return
+        slot_height = self.ITEM_HEIGHT + self.ARROW_HEIGHT + self.ITEM_PADDING
+        total_height = len(self._items) * slot_height
+        item_top = index * slot_height
+        item_bottom = item_top + self.ITEM_HEIGHT
+        
+        canvas_height = self.canvas.winfo_height()
+        if canvas_height <= 1:
+            return
+        
+        # 現在の表示範囲
+        view_top = self.canvas.canvasy(0)
+        view_bottom = view_top + canvas_height
+        
+        if item_top < view_top:
+            self.canvas.yview_moveto(item_top / total_height)
+        elif item_bottom > view_bottom:
+            self.canvas.yview_moveto((item_bottom - canvas_height) / total_height)
+    
+    def _render_items(self) -> None:
+        """全アイテムを描画（フローチャート風ボタン＋矢印）"""
+        self.canvas.delete("all")
+        self._item_widgets.clear()
+        
+        canvas_width = self.canvas.winfo_width()
+        if canvas_width <= 1:
+            canvas_width = 400  # デフォルト幅
+        
+        drag_active = self._drag_data.get("active", False)
+        drag_idx = self._drag_data.get("index")
+        drag_y = self._drag_data.get("current_y", 0)
+        
+        # 1スロットの高さ（ボタン + 矢印）
+        slot_height = self.ITEM_HEIGHT + self.ARROW_HEIGHT + self.ITEM_PADDING
+        
+        # ドラッグ中のアイテムが入る予定の位置（スロット）を計算
+        if drag_active and drag_idx is not None:
+            target_slot = int((drag_y + self.ITEM_HEIGHT // 2) // slot_height)
+            target_slot = max(0, min(target_slot, len(self._items) - 1))
+        else:
+            target_slot = None
+        
+        # 描画用のマージン
+        margin_x = 8
+        button_left = margin_x
+        button_right = canvas_width - margin_x
+        
+        # 各アイテムを描画
+        slot = 0  # 描画するスロット位置
+        total_slots = len(self._items)
+        
+        for i, text in enumerate(self._items):
+            # ドラッグ中のアイテムはスキップ（後で描画）
+            if drag_active and i == drag_idx:
+                total_slots -= 1  # ドラッグ中のものは数えない
+                continue
+            
+            # ドラッグ中で、現在のスロットがターゲット位置なら、1つずらす（隙間を作る）
+            if drag_active and target_slot is not None and slot == target_slot:
+                slot += 1
+            
+            y = slot * slot_height
+            
+            # 背景色を決定
+            if i == self._selected_index and not drag_active:
+                bg = self._item_selected
+                border_color = "#005a9e"
+                fg = "#ffffff"
+            else:
+                bg = self._item_bg
+                border_color = self._item_border
+                fg = self._fg
+            
+            # テキストを整形
+            clean_text = self._strip_number(text)
+            icon = self._get_step_icon(clean_text)
+            formatted_text = self._format_step_text(clean_text)
+            
+            # ボタン風の矩形を描画（角丸風に見せるため枠線付き）
+            rect = self.canvas.create_rectangle(
+                button_left, y + 2,
+                button_right, y + self.ITEM_HEIGHT,
+                fill=bg,
+                outline=border_color,
+                width=1,
+                tags=f"item_{i}",
+            )
+            
+            # アイコンを描画（固定位置）
+            self.canvas.create_text(
+                button_left + 12, y + self.ITEM_HEIGHT // 2 + 1,
+                text=icon,
+                anchor="w",
+                fill=fg,
+                font=("Meiryo UI", 9),
+                tags=f"item_{i}",
+            )
+            
+            # テキストを描画（アイコンの後の固定位置から）
+            txt = self.canvas.create_text(
+                button_left + 32, y + self.ITEM_HEIGHT // 2 + 1,
+                text=formatted_text,
+                anchor="w",
+                fill=fg,
+                font=("Meiryo UI", 9),
+                tags=f"item_{i}",
+            )
+            
+            # 矢印を描画（最後のアイテム以外）
+            actual_remaining = total_slots - slot - 1
+            if actual_remaining > 0 or (drag_active and slot < len(self._items) - 1):
+                arrow_y = y + self.ITEM_HEIGHT + self.ARROW_HEIGHT // 2 + 2
+                arrow_x = canvas_width // 2
+                
+                # 矢印の線
+                self.canvas.create_line(
+                    arrow_x, y + self.ITEM_HEIGHT + 2,
+                    arrow_x, y + self.ITEM_HEIGHT + self.ARROW_HEIGHT - 2,
+                    fill=self._arrow_color,
+                    width=2,
+                    tags=f"arrow_{i}",
+                )
+                
+                # 矢印の先端（三角形）
+                self.canvas.create_polygon(
+                    arrow_x - 5, y + self.ITEM_HEIGHT + self.ARROW_HEIGHT - 8,
+                    arrow_x + 5, y + self.ITEM_HEIGHT + self.ARROW_HEIGHT - 8,
+                    arrow_x, y + self.ITEM_HEIGHT + self.ARROW_HEIGHT - 2,
+                    fill=self._arrow_color,
+                    outline="",
+                    tags=f"arrow_{i}",
+                )
+            
+            self._item_widgets.append({"rect": rect, "text": txt, "index": i})
+            slot += 1
+        
+        # ドラッグ中のアイテムを最前面に描画
+        if drag_active and drag_idx is not None and 0 <= drag_idx < len(self._items):
+            text = self._items[drag_idx]
+            clean_text = self._strip_number(text)
+            icon = self._get_step_icon(clean_text)
+            formatted_text = self._format_step_text(clean_text)
+            
+            # ドラッグ中アイテムの背景（影付き風）
+            shadow_offset = 4
+            self.canvas.create_rectangle(
+                button_left + shadow_offset, drag_y + 2 + shadow_offset,
+                button_right + shadow_offset, drag_y + self.ITEM_HEIGHT + shadow_offset,
+                fill="#00000022",
+                outline="",
+                tags="dragging_shadow",
+            )
+            
+            # ドラッグ中アイテム本体
+            self.canvas.create_rectangle(
+                button_left, drag_y + 2,
+                button_right, drag_y + self.ITEM_HEIGHT,
+                fill=self._item_selected,
+                outline="#ffffff",
+                width=2,
+                tags="dragging",
+            )
+            
+            # ドラッグ中アイコン
+            self.canvas.create_text(
+                button_left + 12, drag_y + self.ITEM_HEIGHT // 2 + 1,
+                text=icon,
+                anchor="w",
+                fill="#ffffff",
+                font=("Meiryo UI", 9, "bold"),
+                tags="dragging",
+            )
+            
+            # ドラッグ中テキスト
+            self.canvas.create_text(
+                button_left + 32, drag_y + self.ITEM_HEIGHT // 2 + 1,
+                text=formatted_text,
+                anchor="w",
+                fill="#ffffff",
+                font=("Meiryo UI", 9, "bold"),
+                tags="dragging",
+            )
+        
+        # スクロール領域を更新（コンテンツがCanvas高さより小さい場合はスクロール無効）
+        total_height = len(self._items) * slot_height + 10
+        canvas_height = self.canvas.winfo_height()
+        if canvas_height > 1 and total_height <= canvas_height:
+            # コンテンツが表示領域に収まる場合はスクロール不要
+            self.canvas.configure(scrollregion=(0, 0, canvas_width, canvas_height))
+            self.canvas.yview_moveto(0)  # 先頭に戻す
+        else:
+            self.canvas.configure(scrollregion=(0, 0, canvas_width, total_height))
+    
+    def _strip_number(self, text: str) -> str:
+        """テキストから先頭の番号部分を削除する"""
+        import re
+        # [1] や [12] などのパターンを削除
+        text = re.sub(r'^\[\d+\]\s*', '', text)
+        # [↕] パターンも削除
+        text = re.sub(r'^\[↕\]\s*', '', text)
+        # 1. や 12. などのパターンも削除
+        text = re.sub(r'^\d+\.\s*', '', text)
+        return text.strip()
+    
+    def _get_step_icon(self, text: str) -> str:
+        """ステップの種類に応じたアイコンを返す"""
+        text_lower = text.lower()
+        if "プログラム" in text or "起動" in text:
+            return "🚀"
+        elif "一時停止" in text or "pause" in text_lower:
+            return "⏸️"
+        elif "待" in text or "wait" in text_lower:
+            return "⏱️"
+        elif "クリック" in text or "click" in text_lower:
+            return "👆"
+        elif "マウス" in text and "移動" in text:
+            return "🖱️"
+        elif "入力" in text or "type" in text_lower or "キーボード" in text:
+            return "⌨️"
+        elif "キー" in text or "hotkey" in text_lower:
+            return "⌨️"
+        elif "ブラウザ" in text or "url" in text_lower:
+            return "🌐"
+        elif "サイト" in text:
+            return "🌐"
+        elif "ファイル" in text:
+            return "📁"
+        elif "メッセージ" in text or "print" in text_lower:
+            return "💬"
+        else:
+            return "▶️"
+    
+    def _format_step_text(self, text: str) -> str:
+        """ステップのテキストをユーザーフレンドリーに整形"""
+        # パスを短くする
+        import re
+        
+        # C:/Program Files/.../xxx.exe → xxx.exe または フォルダ名
+        def shorten_path(match):
+            path = match.group(0)
+            # ファイル名だけ取り出す
+            parts = path.replace("\\", "/").split("/")
+            filename = parts[-1] if parts else path
+            # 拡張子を除いた名前
+            name = filename.rsplit(".", 1)[0] if "." in filename else filename
+            return name
+        
+        # Windowsパスのパターン
+        text = re.sub(r'[A-Za-z]:[/\\][^\s\[\]]+', shorten_path, text)
+        
+        # [エラー時:stop] や [エラー時:continue] を削除（一旦非表示）
+        text = re.sub(r'\s*\[エラー時:[^\]]+\]', '', text)
+        
+        # ユーザーフレンドリーな表現に変換
+        text = text.replace("マウスを座標へ移動する", "マウスを移動")
+        text = text.replace("マウスクリックする", "クリック")
+        text = text.replace("指定秒数だけ待つ", "待機")
+        text = text.replace("プログラムを起動する", "プログラム起動")
+        
+        # 余分なスペースを整理
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        # " - " の前後を整理
+        text = re.sub(r'\s*-\s*', ': ', text, count=1)
+        
+        return text
+    
+    def _get_index_at_y(self, y: int) -> int:
+        """Y座標からインデックスを取得"""
+        canvas_y = self.canvas.canvasy(y)
+        slot_height = self.ITEM_HEIGHT + self.ARROW_HEIGHT + self.ITEM_PADDING
+        index = int(canvas_y // slot_height)
+        return max(0, min(index, len(self._items) - 1))
+    
+    def _on_click(self, event) -> None:
+        """クリック処理"""
+        if not self._items:
+            return
+        
+        index = self._get_index_at_y(event.y)
+        self._selected_index = index
+        
+        # ドラッグ開始準備
+        slot_height = self.ITEM_HEIGHT + self.ARROW_HEIGHT + self.ITEM_PADDING
+        self._drag_data = {
+            "active": False,
+            "index": index,
+            "start_y": event.y,
+            "start_canvas_y": self.canvas.canvasy(event.y),
+            "current_y": index * slot_height,
+        }
+        
+        self._render_items()
+        
+        if self._on_select_callback:
+            self._on_select_callback(index)
+    
+    def _on_double_click(self, event) -> None:
+        """ダブルクリック処理"""
+        if self._on_double_click_callback and self._selected_index is not None:
+            self._on_double_click_callback(self._selected_index)
+    
+    def _on_right_click(self, event) -> None:
+        """右クリック処理"""
+        if not self._items:
+            return
+        
+        index = self._get_index_at_y(event.y)
+        self._selected_index = index
+        self._render_items()
+        
+        if self._on_right_click_callback:
+            self._on_right_click_callback(event, index)
+    
+    def _on_drag(self, event) -> None:
+        """ドラッグ処理"""
+        if self._drag_data["index"] is None:
+            return
+        
+        # ある程度動いたらドラッグ開始
+        if not self._drag_data["active"]:
+            if abs(event.y - self._drag_data["start_y"]) > 5:
+                self._drag_data["active"] = True
+            else:
+                return
+        
+        # ドラッグ中の位置を更新
+        slot_height = self.ITEM_HEIGHT + self.ARROW_HEIGHT + self.ITEM_PADDING
+        canvas_y = self.canvas.canvasy(event.y)
+        offset = canvas_y - self._drag_data["start_canvas_y"]
+        original_y = self._drag_data["index"] * slot_height
+        self._drag_data["current_y"] = original_y + offset
+        
+        self._render_items()
+    
+    def _on_drop(self, event) -> None:
+        """ドロップ処理"""
+        if not self._drag_data["active"]:
+            self._drag_data = {"active": False, "index": None, "start_y": 0, "current_y": 0}
+            return
+        
+        from_index = self._drag_data["index"]
+        to_index = self._get_index_at_y(event.y)
+        
+        self._drag_data = {"active": False, "index": None, "start_y": 0, "current_y": 0}
+        
+        if from_index != to_index and from_index is not None:
+            # アイテムを移動
+            item = self._items.pop(from_index)
+            self._items.insert(to_index, item)
+            self._selected_index = to_index
+            
+            if self._on_reorder_callback:
+                self._on_reorder_callback(from_index, to_index)
+        
+        self._render_items()
+    
+    def _on_mousewheel(self, event) -> None:
+        """マウスホイールでスクロール"""
+        self.canvas.yview_scroll(-1 * (event.delta // 120), "units")
+    
+    # コールバック設定
+    def set_on_select(self, callback) -> None:
+        self._on_select_callback = callback
+    
+    def set_on_double_click(self, callback) -> None:
+        self._on_double_click_callback = callback
+    
+    def set_on_right_click(self, callback) -> None:
+        self._on_right_click_callback = callback
+    
+    def set_on_reorder(self, callback) -> None:
+        self._on_reorder_callback = callback
+    
+    # Listbox互換メソッド
+    def bind(self, sequence, func):
+        """Listbox互換: bind"""
+        # 一部のイベントは内部で処理するのでスキップ
+        if sequence in ("<Button-1>", "<B1-Motion>", "<ButtonRelease-1>", "<Double-Button-1>", "<Button-3>"):
+            return
+        self.canvas.bind(sequence, func)
+    
+    def config(self, **kwargs):
+        """Listbox互換: config"""
+        if "yscrollcommand" in kwargs:
+            self.canvas.configure(yscrollcommand=kwargs["yscrollcommand"])
+    
+    def yview(self, *args):
+        """Listbox互換: yview"""
+        return self.canvas.yview(*args)
+
+
 class StepEditor(tk.Toplevel):
     """
     1ステップ分（action + params）の編集ダイアログ。
@@ -64,12 +607,14 @@ class StepEditor(tk.Toplevel):
         action_ids: List[str],
         initial_step: Optional[Dict[str, Any]] = None,
         resources: Optional[Dict[str, Any]] = None,
+        dark_mode: bool = False,
     ) -> None:
         super().__init__(master)
         self.title("ステップ編集")
         self.resizable(False, False)
         self.grab_set()  # モーダルっぽく
 
+        self._dark_mode = dark_mode
         self._result: Optional[Dict[str, Any]] = None
 
         # 座標フィールド用
@@ -84,6 +629,9 @@ class StepEditor(tk.Toplevel):
             "sites": resources.get("sites") or {},
             "files": resources.get("files") or {},
         }
+
+        # ★ ダークモード時の色設定
+        self._apply_dialog_theme()
 
         # アクション定義
         self.action_defs: List[Dict[str, Any]] = [
@@ -163,6 +711,7 @@ class StepEditor(tk.Toplevel):
                 "label": "マウスを座標へ移動する",
                 "help": "画面上の座標（x, y）へマウスカーソルを移動します。",
                 "fields": [
+                    {"name": "delay", "label": "実行前の待機（秒）", "type": "float", "default": None, "optional": True},
                     {"name": "x", "label": "X座標", "type": "int", "default": 500},
                     {"name": "y", "label": "Y座標", "type": "int", "default": 300},
                     {"name": "duration", "label": "移動時間（秒）", "type": "float", "default": 0.3},
@@ -173,6 +722,7 @@ class StepEditor(tk.Toplevel):
                 "label": "マウスクリックする",
                 "help": "マウスクリックをします。座標を空欄にすると現在位置でクリックします。",
                 "fields": [
+                    {"name": "delay", "label": "実行前の待機（秒）", "type": "float", "default": None, "optional": True},
                     {"name": "button", "label": "ボタン（left/right/middle）", "type": "str", "default": "left"},
                     {"name": "clicks", "label": "クリック回数", "type": "int", "default": 1},
                     {"name": "x", "label": "X座標（任意）", "type": "int", "default": None, "optional": True},
@@ -184,6 +734,7 @@ class StepEditor(tk.Toplevel):
                 "label": "画面をスクロールする",
                 "help": "マウスホイールで画面をスクロールします。プラスで上、マイナスで下にスクロールします。",
                 "fields": [
+                    {"name": "delay", "label": "実行前の待機（秒）", "type": "float", "default": None, "optional": True},
                     {"name": "amount", "label": "スクロール量（+で上 / -で下）", "type": "int", "default": -500},
                     {"name": "x", "label": "X座標（任意）", "type": "int", "default": None, "optional": True},
                     {"name": "y", "label": "Y座標（任意）", "type": "int", "default": None, "optional": True},
@@ -205,6 +756,14 @@ class StepEditor(tk.Toplevel):
                 "fields": [
                     {"name": "src", "label": "移動元ファイルパス", "type": "str", "default": "old.txt"},
                     {"name": "dst", "label": "移動先ファイルパス", "type": "str", "default": "new.txt"},
+                ],
+            },
+            {
+                "id": "pause",
+                "label": "一時停止（手動で再開）",
+                "help": "ダイアログが表示され、「OK」を押すまでフローが一時停止します。手動作業を挟みたい時に使います。",
+                "fields": [
+                    {"name": "message", "label": "表示するメッセージ", "type": "str", "default": "準備ができたら「OK」を押してください"},
                 ],
             },
         ]
@@ -242,46 +801,55 @@ class StepEditor(tk.Toplevel):
     def _create_widgets(self) -> None:
         self.columnconfigure(1, weight=1)
 
-        ttk.Label(self, text="やりたいこと").grid(row=0, column=0, sticky="e", padx=4, pady=4)
+        # ダークモード用の色
+        if self._dark_mode:
+            help_fg = "#aaaaaa"
+        else:
+            help_fg = "gray"
+
+        ttk.Label(self, text="やりたいこと", style="Dialog.TLabel").grid(row=0, column=0, sticky="e", padx=4, pady=4)
         action_combo = ttk.Combobox(
             self,
             textvariable=self.action_label_var,
             state="readonly",
             values=[d["label"] for d in self.action_defs],
             width=40,
+            style="Dialog.TCombobox",
         )
         action_combo.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
 
         help_label = ttk.Label(
             self,
             textvariable=self.help_text_var,
-            foreground="gray",
+            foreground=help_fg,
             wraplength=420,
             justify="left",
+            style="Dialog.TLabel",
         )
         help_label.grid(row=1, column=0, columnspan=2, sticky="w", padx=4, pady=(0, 4))
 
-        ttk.Label(self, text="エラー時の動き").grid(row=2, column=0, sticky="e", padx=4, pady=4)
+        ttk.Label(self, text="エラー時の動き", style="Dialog.TLabel").grid(row=2, column=0, sticky="e", padx=4, pady=4)
         on_error_combo = ttk.Combobox(
             self,
             textvariable=self.on_error_var,
             state="readonly",
             values=["", "stop", "continue"],
             width=10,
+            style="Dialog.TCombobox",
         )
         on_error_combo.grid(row=2, column=1, sticky="w", padx=4, pady=4)
         on_error_combo.set("")
 
-        params_frame = ttk.LabelFrame(self, text="このステップの設定")
+        params_frame = ttk.LabelFrame(self, text="このステップの設定", style="Dialog.TLabelframe")
         params_frame.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=4, pady=(4, 4))
         params_frame.columnconfigure(1, weight=1)
         self.params_frame = params_frame
 
-        btn_frame = ttk.Frame(self)
+        btn_frame = ttk.Frame(self, style="Dialog.TFrame")
         btn_frame.grid(row=4, column=0, columnspan=2, sticky="e", padx=4, pady=4)
 
-        ttk.Button(btn_frame, text="OK", command=self._on_ok).grid(row=0, column=0, padx=4)
-        ttk.Button(btn_frame, text="キャンセル", command=self._on_cancel).grid(row=0, column=1, padx=4)
+        ttk.Button(btn_frame, text="OK", command=self._on_ok, style="Dialog.TButton").grid(row=0, column=0, padx=4)
+        ttk.Button(btn_frame, text="キャンセル", command=self._on_cancel, style="Dialog.TButton").grid(row=0, column=1, padx=4)
 
     def _on_action_changed(self) -> None:
         label = self.action_label_var.get().strip()
@@ -570,19 +1138,23 @@ class StepEditor(tk.Toplevel):
         top.transient(self)  # StepEditor を親にする
         top.grab_set()
 
-        frame = ttk.Frame(top, padding=8)
+        # ★ ダークモード対応
+        if self._dark_mode:
+            top.configure(bg="#505050")
+
+        frame = ttk.Frame(top, padding=8, style="Dialog.TFrame")
         frame.grid(row=0, column=0, sticky="nsew")
         frame.columnconfigure(1, weight=1)
 
-        ttk.Label(frame, text="表示名").grid(row=0, column=0, sticky="e", padx=4, pady=4)
+        ttk.Label(frame, text="表示名", style="Dialog.TLabel").grid(row=0, column=0, sticky="e", padx=4, pady=4)
         label_var = tk.StringVar(value=initial_label)
-        ttk.Entry(frame, textvariable=label_var, width=40).grid(
+        ttk.Entry(frame, textvariable=label_var, width=40, style="Dialog.TEntry").grid(
             row=0, column=1, columnspan=2, sticky="ew", padx=4, pady=4
         )
 
-        ttk.Label(frame, text="URL").grid(row=1, column=0, sticky="e", padx=4, pady=4)
+        ttk.Label(frame, text="URL", style="Dialog.TLabel").grid(row=1, column=0, sticky="e", padx=4, pady=4)
         url_var = tk.StringVar(value=initial_url)
-        url_entry = ttk.Entry(frame, textvariable=url_var, width=40)
+        url_entry = ttk.Entry(frame, textvariable=url_var, width=40, style="Dialog.TEntry")
         url_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=4, pady=4)
 
         fetch_after_id = {"id": None}
@@ -623,7 +1195,7 @@ class StepEditor(tk.Toplevel):
 
         url_var.trace_add("write", _schedule_auto_fill)
 
-        btn_frame = ttk.Frame(frame)
+        btn_frame = ttk.Frame(frame, style="Dialog.TFrame")
         btn_frame.grid(row=2, column=0, columnspan=3, sticky="e", pady=(4, 0))
 
         def _on_ok() -> None:
@@ -682,8 +1254,8 @@ class StepEditor(tk.Toplevel):
             except Exception:
                 pass
 
-        ttk.Button(btn_frame, text="OK", command=_on_ok).grid(row=0, column=0, padx=4)
-        ttk.Button(btn_frame, text="キャンセル", command=_on_cancel).grid(row=0, column=1, padx=4)
+        ttk.Button(btn_frame, text="OK", command=_on_ok, style="Dialog.TButton").grid(row=0, column=0, padx=4)
+        ttk.Button(btn_frame, text="キャンセル", command=_on_cancel, style="Dialog.TButton").grid(row=0, column=1, padx=4)
 
         url_entry.focus_set()
 
@@ -724,19 +1296,23 @@ class StepEditor(tk.Toplevel):
         top.transient(self)
         top.grab_set()
 
-        frame = ttk.Frame(top, padding=8)
+        # ★ ダークモード対応
+        if self._dark_mode:
+            top.configure(bg="#505050")
+
+        frame = ttk.Frame(top, padding=8, style="Dialog.TFrame")
         frame.grid(row=0, column=0, sticky="nsew")
         frame.columnconfigure(1, weight=1)
 
-        ttk.Label(frame, text="表示名").grid(row=0, column=0, sticky="e", padx=4, pady=4)
+        ttk.Label(frame, text="表示名", style="Dialog.TLabel").grid(row=0, column=0, sticky="e", padx=4, pady=4)
         label_var = tk.StringVar(value=initial_label)
-        ttk.Entry(frame, textvariable=label_var, width=40).grid(
+        ttk.Entry(frame, textvariable=label_var, width=40, style="Dialog.TEntry").grid(
             row=0, column=1, columnspan=2, sticky="ew", padx=4, pady=4
         )
 
-        ttk.Label(frame, text="ファイルパス").grid(row=1, column=0, sticky="e", padx=4, pady=4)
+        ttk.Label(frame, text="ファイルパス", style="Dialog.TLabel").grid(row=1, column=0, sticky="e", padx=4, pady=4)
         path_var = tk.StringVar(value=initial_path)
-        path_entry = ttk.Entry(frame, textvariable=path_var, width=40)
+        path_entry = ttk.Entry(frame, textvariable=path_var, width=40, style="Dialog.TEntry")
         path_entry.grid(row=1, column=1, sticky="ew", padx=4, pady=4)
 
         def _on_browse() -> None:
@@ -744,7 +1320,7 @@ class StepEditor(tk.Toplevel):
             if path:
                 path_var.set(path)
 
-        ttk.Button(frame, text="参照...", command=_on_browse).grid(
+        ttk.Button(frame, text="参照...", command=_on_browse, style="Dialog.TButton").grid(
             row=1, column=2, sticky="w", padx=(0, 4), pady=4
         )
 
@@ -781,7 +1357,7 @@ class StepEditor(tk.Toplevel):
 
         path_var.trace_add("write", _schedule_auto_fill)
 
-        btn_frame = ttk.Frame(frame)
+        btn_frame = ttk.Frame(frame, style="Dialog.TFrame")
         btn_frame.grid(row=2, column=0, columnspan=3, sticky="e", pady=(4, 0))
 
         def _on_ok() -> None:
@@ -835,8 +1411,8 @@ class StepEditor(tk.Toplevel):
             except Exception:
                 pass
 
-        ttk.Button(btn_frame, text="OK", command=_on_ok).grid(row=0, column=0, padx=4)
-        ttk.Button(btn_frame, text="キャンセル", command=_on_cancel).grid(row=0, column=1, padx=4)
+        ttk.Button(btn_frame, text="OK", command=_on_ok, style="Dialog.TButton").grid(row=0, column=0, padx=4)
+        ttk.Button(btn_frame, text="キャンセル", command=_on_cancel, style="Dialog.TButton").grid(row=0, column=1, padx=4)
 
         path_entry.focus_set()
 
@@ -854,16 +1430,23 @@ class StepEditor(tk.Toplevel):
                 self.title("画面から座標を取得")
                 self.resizable(False, False)
 
+                # ★ ダークモード対応
+                if parent._dark_mode:
+                    bg = "#505050"
+                else:
+                    bg = "#e1e1e1"
+                self.configure(bg=bg)
+
                 msg = (
                     "1. 押したい場所にマウスカーソルを動かしてください。\n"
                     "2. このウィンドウをアクティブにして Enter を押すと、\n"
                     "   その位置の座標を X/Y にセットします。"
                 )
-                ttk.Label(self, text=msg, justify="left").pack(padx=8, pady=(8, 4))
-                self.pos_label = ttk.Label(self, text="現在の座標: x=--, y=--")
+                ttk.Label(self, text=msg, justify="left", style="Dialog.TLabel").pack(padx=8, pady=(8, 4))
+                self.pos_label = ttk.Label(self, text="現在の座標: x=--, y=--", style="Dialog.TLabel")
                 self.pos_label.pack(padx=8, pady=(0, 8))
 
-                ttk.Button(self, text="今の座標を反映して閉じる", command=self._finish).pack(
+                ttk.Button(self, text="今の座標を反映して閉じる", command=self._finish, style="Dialog.TButton").pack(
                     padx=8, pady=(0, 8)
                 )
 
@@ -969,27 +1552,60 @@ class StepEditor(tk.Toplevel):
     def get_result(self) -> Optional[Dict[str, Any]]:
         return self._result
 
+    def _apply_dialog_theme(self) -> None:
+        """ダークモード時にダイアログの色を設定する。"""
+        if self._dark_mode:
+            bg = "#505050"
+            fg = "#f0f0f0"
+            entry_bg = "#606060"
+        else:
+            bg = "#e1e1e1"
+            fg = "#000000"
+            entry_bg = "#ffffff"
+
+        self.configure(bg=bg)
+
+        # ttkスタイルをこのダイアログ用に設定
+        style = ttk.Style()
+        style.configure("Dialog.TFrame", background=bg)
+        style.configure("Dialog.TLabel", background=bg, foreground=fg)
+        style.configure("Dialog.TLabelframe", background=bg)
+        style.configure("Dialog.TLabelframe.Label", background=bg, foreground=fg)
+        style.configure("Dialog.TButton", background=entry_bg, foreground=fg)
+        style.configure("Dialog.TEntry", fieldbackground=entry_bg, foreground=fg)
+        style.configure("Dialog.TCombobox", fieldbackground=entry_bg, foreground=fg)
+
+
 class CoordinateCapture(tk.Toplevel):
     """
     画面上でマウスを動かして、Enterキーを押した時点の座標を取得する。
     """
 
-    def __init__(self, master: tk.Tk) -> None:
+    def __init__(self, master: tk.Tk, dark_mode: bool = False) -> None:
         super().__init__(master)
         self.title("マウス座標キャプチャ")
         self.resizable(False, False)
+
+        # ★ ダークモード対応
+        if dark_mode:
+            bg = "#505050"
+            fg = "#f0f0f0"
+        else:
+            bg = "#e1e1e1"
+            fg = "#000000"
+        self.configure(bg=bg)
 
         msg = (
             "1. 押したい場所にマウスカーソルを動かしてください。\n"
             "2. このウィンドウをアクティブにして Enter を押すと、\n"
             "   その位置の座標をクリップボードにコピーします。"
         )
-        ttk.Label(self, text=msg, justify="left").pack(padx=8, pady=(8, 4))
+        ttk.Label(self, text=msg, justify="left", style="Dialog.TLabel").pack(padx=8, pady=(8, 4))
 
-        self.pos_label = ttk.Label(self, text="現在の座標: x=--, y=--")
+        self.pos_label = ttk.Label(self, text="現在の座標: x=--, y=--", style="Dialog.TLabel")
         self.pos_label.pack(padx=8, pady=(0, 8))
 
-        ttk.Button(self, text="今の座標をコピーして閉じる", command=self._finish).pack(
+        ttk.Button(self, text="今の座標をコピーして閉じる", command=self._finish, style="Dialog.TButton").pack(
             padx=8, pady=(0, 8)
         )
 
@@ -1025,7 +1641,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("AVANTIXRPA Launcher")
-        self.geometry("1100x650")  # 好きなサイズでOK
+        self.geometry("1200x750")  # 縦幅を少し拡大（700→750）
 
         self.style = ttk.Style()
         try:
@@ -1034,69 +1650,40 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             pass
         self.option_add("*Font", "{Meiryo UI} 9")
 
-        # ★ ロゴ画像の読み込み（あれば使う）
-        self.logo_image: Optional[tk.PhotoImage] = None
-        try:
-            if LOGO_FILE.exists():
-                original = tk.PhotoImage(file=str(LOGO_FILE))
+        # ★ 設定を読み込み（ダークモードなど）
+        self._settings = self._load_settings()
+        self._dark_mode = self._settings.get("dark_mode", False)
 
-                # サイズが大きい場合は自動で縮小 (例: 幅300pxを上限にする)
+        # ★ ロゴ画像の読み込み（ライト / ダーク 両方）
+        self.logo_image: Optional[tk.PhotoImage] = None
+        self.logo_image_dark: Optional[tk.PhotoImage] = None
+        self._logo_label: Optional[ttk.Label] = None  # ロゴ表示用ラベルへの参照
+
+        def _load_logo(logo_path: Path) -> Optional[tk.PhotoImage]:
+            """ロゴ画像を読み込んで適切なサイズに縮小して返す。"""
+            if not logo_path.exists():
+                return None
+            try:
+                original = tk.PhotoImage(file=str(logo_path))
                 max_width = 300
                 if original.width() > max_width:
                     scale = int(original.width() / max_width)
                     if scale < 1:
                         scale = 1
-                    self.logo_image = original.subsample(scale)
-                else:
-                    self.logo_image = original
+                    return original.subsample(scale)
+                return original
+            except Exception as exc:
+                print(f"[RPA] ロゴ画像の読み込みに失敗しました: {exc}")
+                return None
 
-            else:
-                print(f"[RPA] ロゴ画像が見つかりません: {LOGO_FILE}")
+        self.logo_image = _load_logo(LOGO_FILE)
+        self.logo_image_dark = _load_logo(LOGO_FILE_DARK)
 
-        except Exception as exc:
-            print(f"[RPA] ロゴ画像の読み込みに失敗しました: {exc}")
+        if self.logo_image is None:
+            print(f"[RPA] ロゴ画像が見つかりません: {LOGO_FILE}")
 
-        # ===== カラーパレット =====
-        base_bg = "#e1e1e1"   # ウィンドウ全体の背景（床）
-        panel_bg = "#ffffff"  # ヘッダやカードの背景（白）
-
-        # ウィンドウ自体の背景
-        self.configure(bg=base_bg)
-
-        # デフォルト Frame / ベース用
-        self.style.configure("TFrame", background=base_bg)
-        self.style.configure("Main.TFrame", background=base_bg)
-
-        # ヘッダ（ロゴの下は白にして PNG を活かす）
-        self.style.configure(
-            "AppHeader.TFrame",
-            background=base_bg,
-        )
-        self.style.configure(
-            "AppHeader.TLabel",
-            background=base_bg,
-            font=("{Meiryo UI}", 11, "bold"),
-        )
-
-        # カード（中央のフロー一覧 / ログ）
-        self.style.configure(
-            "Card.TFrame",
-            relief="groove",
-            borderwidth=1,
-            background=panel_bg,
-        )
-
-        # フッター
-        self.style.configure(
-            "Footer.TLabel",
-            font=("{Meiryo UI}", 8),
-            foreground="#888888",
-            background=base_bg,
-        )
-
-        # Notebook 周りの背景も揃える
-        self.style.configure("TNotebook", background=base_bg, borderwidth=0)
-        self.style.configure("TNotebook.Tab", padding=(8, 4))
+        # ===== テーマ適用 =====
+        self._apply_theme()
 
 
         # ★ ウィンドウ全体のグリッド設定
@@ -1110,7 +1697,8 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         self.header_frame.columnconfigure(1, weight=1)
 
         if self.logo_image is not None:
-            ttk.Label(self.header_frame, image=self.logo_image,style="AppHeader.TLabel").grid(row=0, column=0, sticky="w")
+            self._logo_label = ttk.Label(self.header_frame, image=self.logo_image, style="AppHeader.TLabel")
+            self._logo_label.grid(row=0, column=0, sticky="w")
             ttk.Label(
                 self.header_frame,
                 text="AVANTIXRPA Launcher",
@@ -1125,19 +1713,223 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
         self.engine = Engine(BUILTIN_ACTIONS)
         self._running_thread: Optional[threading.Thread] = None
-
+        self._stop_event = threading.Event()  # ★ 中断用イベント
+        
+        # 工程プレビュー表示用：アクションID → 日本語ラベル
+        self._action_id_to_label = {
+            "print": "メッセージを表示する",
+            "wait": "指定秒数だけ待つ",
+            "browser.open": "ブラウザでURLを開く",
+            "resource.open_site": "登録済みサイトを開く",
+            "resource.open_file": "登録済みファイルを開く",
+            "run.program": "プログラムを起動する",
+            "ui.type": "文字を入力する（キーボード）",
+            "ui.hotkey": "キー操作を送る（Enter / Ctrl+Sなど）",
+            "ui.move": "マウスを座標へ移動する",
+            "ui.click": "マウスクリックする",
+            "ui.scroll": "画面をスクロールする",
+            "file.copy": "ファイルをコピーする",
+            "file.move": "ファイルを移動する",
+        }
+        
         self.resources: Dict[str, Any] = self._load_resources()
         self._flow_entries: List[Dict[str, Any]] = []
 
+        # フロー編集用
         self.edit_flow_name_var = tk.StringVar()
         self.edit_on_error_var = tk.StringVar()
+        self.edit_flow_description_var = tk.StringVar()  # ★ フロー説明（1行）用
         self.edit_steps: List[Dict[str, Any]] = []
 
         # ★ 追加：今編集中のフロー(YAML)のパス（新規のときは None）
         self.current_edit_flow_path: Optional[Path] = None
 
+        # フロー実行タブの詳細表示（説明＋工程プレビュー）用
+        self.flow_detail_var = tk.StringVar()          # 互換用（念のため残す）
+        self.flow_detail_text: Optional[tk.Text] = None  # 説明＋工程の表示用 Text
+
         self._create_widgets()
         self._load_flows_list()
+
+    def _load_settings(self) -> Dict[str, Any]:
+        """設定ファイルを読み込む。"""
+        if not SETTINGS_FILE.exists():
+            return {}
+        try:
+            with SETTINGS_FILE.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except Exception as exc:
+            print(f"[RPA] 設定ファイルの読み込みに失敗: {exc}")
+            return {}
+
+    def _save_settings(self) -> None:
+        """設定ファイルに保存する。"""
+        self._settings["dark_mode"] = self._dark_mode
+        try:
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            with SETTINGS_FILE.open("w", encoding="utf-8") as f:
+                json.dump(self._settings, f, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            print(f"[RPA] 設定ファイルの保存に失敗: {exc}")
+
+    def _apply_theme(self) -> None:
+        """現在のダークモード状態に応じてテーマを適用する。"""
+        if self._dark_mode:
+            base_bg = "#505050"       # 背景（グレー寄り）
+            panel_bg = "#606060"      # パネル
+            fg_color = "#f0f0f0"      # 文字色
+            fg_muted = "#aaaaaa"      # 薄い文字
+            select_bg = "#0078d7"     # 選択色
+            button_bg = "#686868"     # ボタン背景
+            button_active = "#787878" # ボタンhover
+            tab_bg = "#585858"        # タブ背景
+            tab_selected = "#686868"  # タブ選択時
+            scrollbar_bg = "#707070"  # スクロールバー
+            scrollbar_trough = "#505050"
+            entry_bg = "#606060"      # 入力欄背景
+        else:
+            base_bg = "#e1e1e1"
+            panel_bg = "#ffffff"
+            fg_color = "#000000"
+            fg_muted = "#888888"
+            select_bg = "#0078d7"
+            button_bg = "#e1e1e1"
+            button_active = "#c9c9c9"
+            tab_bg = "#e1e1e1"
+            tab_selected = "#ffffff"
+            scrollbar_bg = "#c1c1c1"
+            scrollbar_trough = "#e1e1e1"
+            entry_bg = "#ffffff"
+
+        self.configure(bg=base_bg)
+
+        self.style.configure("TFrame", background=base_bg)
+        self.style.configure("Main.TFrame", background=base_bg)
+
+        # ヘッダーはダークモードのときだけpanel_bgに揃える
+        header_bg = panel_bg if self._dark_mode else base_bg
+        self.style.configure("AppHeader.TFrame", background=header_bg)
+        self.style.configure(
+            "AppHeader.TLabel",
+            background=header_bg,
+            foreground=fg_color,
+            font=("{Meiryo UI}", 11, "bold"),
+        )
+
+        self.style.configure(
+            "Card.TFrame",
+            relief="groove",
+            borderwidth=1,
+            background=panel_bg,
+        )
+
+        self.style.configure(
+            "Footer.TLabel",
+            font=("{Meiryo UI}", 8),
+            foreground=fg_muted,
+            background=base_bg,
+        )
+
+        self.style.configure(
+            "FlowDetailHeader.TLabel",
+            background=base_bg,
+            foreground=fg_color,
+            font=("{Meiryo UI}", 9, "bold"),
+        )
+
+        self.style.configure("TLabel", background=base_bg, foreground=fg_color)
+        self.style.configure("TLabelframe", background=base_bg)
+        self.style.configure("TLabelframe.Label", background=base_bg, foreground=fg_color)
+
+        # ★ ボタン
+        self.style.configure(
+            "TButton",
+            background=button_bg,
+            foreground=fg_color,
+        )
+        self.style.map(
+            "TButton",
+            background=[("active", button_active), ("pressed", button_active)],
+            foreground=[("active", fg_color), ("pressed", fg_color)],
+        )
+
+        # ★ Notebook（タブ）- ダークモード時はヘッダーと同じ色に
+        notebook_bg = header_bg
+        self.style.configure("TNotebook", background=notebook_bg, borderwidth=0)
+        self.style.configure(
+            "TNotebook.Tab",
+            background=tab_bg,
+            foreground=fg_color,
+            padding=(8, 4),
+        )
+        self.style.map(
+            "TNotebook.Tab",
+            background=[("selected", tab_selected), ("active", button_active)],
+            foreground=[("selected", fg_color), ("active", fg_color)],
+        )
+
+        # ★ スクロールバー
+        self.style.configure(
+            "TScrollbar",
+            background=scrollbar_bg,
+            troughcolor=scrollbar_trough,
+            borderwidth=0,
+        )
+        self.style.map(
+            "TScrollbar",
+            background=[("active", button_active), ("pressed", button_active)],
+        )
+
+        # ★ Entry（テキスト入力欄）
+        self.style.configure(
+            "TEntry",
+            fieldbackground=entry_bg,
+            foreground=fg_color,
+            insertcolor=fg_color,
+        )
+
+        # ★ Combobox
+        self.style.configure(
+            "TCombobox",
+            fieldbackground=entry_bg,
+            background=button_bg,
+            foreground=fg_color,
+        )
+        self.style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", entry_bg)],
+            foreground=[("readonly", fg_color)],
+        )
+
+        # Listbox / Text は ttk じゃないので直接設定
+        for widget in [
+            getattr(self, "flows_listbox", None),
+            getattr(self, "site_listbox", None),
+            getattr(self, "file_listbox", None),
+        ]:
+            if widget:
+                try:
+                    widget.config(bg=panel_bg, fg=fg_color, selectbackground=select_bg)
+                except Exception:
+                    pass
+
+        # ★ DraggableStepList のダークモード切り替え
+        if hasattr(self, "edit_steps_list") and self.edit_steps_list:
+            try:
+                self.edit_steps_list.set_dark_mode(self._dark_mode)
+            except Exception:
+                pass
+
+        for widget in [
+            getattr(self, "log_text", None),
+            getattr(self, "flow_detail_text", None),
+        ]:
+            if widget:
+                try:
+                    widget.config(bg=panel_bg, fg=fg_color)
+                except Exception:
+                    pass
 
     def _load_resources(self) -> Dict[str, Any]:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -1201,35 +1993,6 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             i += 1
         return key
 
-    def _fetch_title_from_url(self, url: str) -> str | None:
-        """URL から <title> を引っこ抜いて返す。失敗したら None。"""
-        if not url:
-            return None
-
-        try:
-            with urllib.request.urlopen(url, timeout=5) as resp:
-                # サーバから charset が来てたらそれ優先
-                charset = resp.headers.get_content_charset() or "utf-8"
-                data = resp.read()
-        except Exception as e:
-            print(f"[RPA] タイトル取得失敗: {e}")
-            return None
-
-        try:
-            text = data.decode(charset, errors="ignore")
-        except Exception:
-            text = data.decode("utf-8", errors="ignore")
-
-        m = re.search(r"<title[^>]*>(.*?)</title>", text, re.IGNORECASE | re.DOTALL)
-        if not m:
-            return None
-
-        title = m.group(1)
-        # 改行・連続スペースを1個に
-        title = re.sub(r"\s+", " ", title).strip()
-        title = html_lib.unescape(title)
-        return title or None
-
     def _save_resources(self) -> None:
         try:
             with RESOURCES_FILE.open("w", encoding="utf-8") as f:
@@ -1237,9 +2000,58 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         except Exception as exc:
             messagebox.showerror("リソース保存エラー", f"resources.json の保存に失敗しました。\n{exc}")
 
+    def _create_menubar(self) -> None:
+        """メニューバーを作成する。"""
+        menubar = tk.Menu(self)
+        self.config(menu=menubar)
+
+        # ファイルメニュー
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="ファイル", menu=file_menu)
+        file_menu.add_command(label="エクスポート...", command=self._on_export_data)
+        file_menu.add_command(label="インポート...", command=self._on_import_data)
+        file_menu.add_separator()
+        file_menu.add_command(label="終了", command=self.destroy)
+
+        # ★ 表示メニュー（新規追加）
+        view_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="表示", menu=view_menu)
+        self._dark_mode_var = tk.BooleanVar(value=self._dark_mode)
+        view_menu.add_checkbutton(
+            label="ダークモード",
+            variable=self._dark_mode_var,
+            command=self._toggle_dark_mode,
+        )
+
+        # ツールメニュー
+        tool_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="ツール", menu=tool_menu)
+        tool_menu.add_command(label="マウス座標キャプチャ", command=self._open_coord_capture)
+        tool_menu.add_command(label="削除したフローを復元...", command=self._open_trash_manager)
+
+    def _toggle_dark_mode(self) -> None:
+        """ダークモードの切り替え。"""
+        self._dark_mode = self._dark_mode_var.get()
+        self._apply_theme()
+        self._update_logo()
+        self._save_settings()  # ★ 設定を保存
+
+    def _update_logo(self) -> None:
+        """ダークモード状態に応じてロゴ画像を切り替える。"""
+        if self._logo_label is None:
+            return
+
+        if self._dark_mode and self.logo_image_dark is not None:
+            self._logo_label.config(image=self.logo_image_dark)
+        elif self.logo_image is not None:
+            self._logo_label.config(image=self.logo_image)
+
     def _create_widgets(self) -> None:
         self.columnconfigure(0, weight=1)
         # 行の weight は __init__ で設定
+
+        # ★ メニューバー追加
+        self._create_menubar()
 
         # ★ Notebook とタブをインスタンス変数で保持しておく
         self.notebook = ttk.Notebook(self)
@@ -1269,11 +2081,12 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         bottom.grid(row=3, column=0, sticky="ew", pady=(2, 4))
         bottom.columnconfigure(0, weight=1)
 
-        coord_btn = ttk.Button(bottom, text="マウス座標キャプチャ", command=self._open_coord_capture)
-        coord_btn.grid(row=0, column=0, sticky="w", padx=(8, 0))
+        self.run_button = ttk.Button(bottom, text="▶ フローを実行", command=self._on_run_clicked)
+        self.run_button.grid(row=0, column=0, sticky="w", padx=(8, 0))
 
-        self.run_button = ttk.Button(bottom, text="▶ フローを実行", command=self._on_run_clicked,)
-        self.run_button.grid(row=0, column=1, padx=(8, 0))
+        # ★ 中断ボタン
+        self.stop_button = ttk.Button(bottom, text="■ 中断", command=self._on_stop_clicked, state="disabled")
+        self.stop_button.grid(row=0, column=1, sticky="w", padx=(8, 0))
 
         self.reload_button = ttk.Button(bottom, text="フロー再読み込み", command=self._load_flows_list)
         self.reload_button.grid(row=0, column=2, padx=(8, 0))
@@ -1290,6 +2103,66 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             style="Footer.TLabel",
         )
         footer_label.grid(row=0, column=0, sticky="ew", padx=8)  # ← sticky を "ew" に
+
+        # ★ キーボードショートカット設定
+        self._setup_keyboard_shortcuts()
+
+        # ★ 起動時にダークモードが有効なら適用
+        if self._dark_mode:
+            self._apply_theme()
+            self._update_logo()
+
+    def _setup_keyboard_shortcuts(self) -> None:
+        """キーボードショートカットを設定する。"""
+        # ファイル操作系
+        self.bind_all("<Control-s>", lambda e: self._shortcut_save())
+        self.bind_all("<Control-n>", lambda e: self._shortcut_new_flow())
+        self.bind_all("<Control-o>", lambda e: self._shortcut_load_flow())
+
+        # 実行系
+        self.bind_all("<F5>", lambda e: self._on_run_clicked())
+        self.bind_all("<Control-r>", lambda e: self._load_flows_list())
+
+        # ステップ操作系（エディタタブ用）
+        self.bind_all("<Delete>", lambda e: self._shortcut_delete_step())
+        self.bind_all("<Control-Up>", lambda e: self._editor_move_step(-1))
+        self.bind_all("<Control-Down>", lambda e: self._editor_move_step(1))
+
+    def _shortcut_save(self) -> None:
+        """Ctrl+S: 現在のタブに応じて保存処理。"""
+        # エディタタブがアクティブなら保存
+        try:
+            current = self.notebook.index(self.notebook.select())
+            if current == 2:  # フローを作成・編集タブ
+                self._editor_save_flow()
+        except Exception:
+            pass
+
+    def _shortcut_new_flow(self) -> None:
+        """Ctrl+N: 新しいフロー作成。"""
+        self._editor_new_flow()
+        # エディタタブに切り替え
+        try:
+            self.notebook.select(self.editor_tab)
+        except Exception:
+            pass
+
+    def _shortcut_load_flow(self) -> None:
+        """Ctrl+O: 既存フロー読み込み。"""
+        self._editor_load_flow()
+        try:
+            self.notebook.select(self.editor_tab)
+        except Exception:
+            pass
+
+    def _shortcut_delete_step(self) -> None:
+        """Delete: エディタタブでステップ削除。"""
+        try:
+            current = self.notebook.index(self.notebook.select())
+            if current == 2:  # フローを作成・編集タブ
+                self._editor_delete_step()
+        except Exception:
+            pass
 
     def _create_flow_tab(self, tab: ttk.Frame) -> None:
         # タブ全体のグリッド設定（ヘッダーはウィンドウ共通なのでここには置かない）
@@ -1311,7 +2184,8 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         lbl_flows = ttk.Label(left_frame, text="フロー一覧（RPA名）")
         lbl_flows.grid(row=0, column=0, sticky="w")
 
-        self.flows_listbox = tk.Listbox(left_frame, height=18)
+        # ★ selectmode="extended" で複数選択対応（Shift/Ctrl+クリック）
+        self.flows_listbox = tk.Listbox(left_frame, height=18, selectmode="extended")
         self.flows_listbox.grid(row=1, column=0, sticky="nsew")
 
         scrollbar = ttk.Scrollbar(left_frame, orient="vertical", command=self.flows_listbox.yview)
@@ -1321,12 +2195,16 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         # ダブルクリックで実行
         self.flows_listbox.bind("<Double-Button-1>", self._on_flow_double_click)
 
+        # 選択変更で詳細表示を更新
+        self.flows_listbox.bind("<<ListboxSelect>>", self._on_flow_selection_changed)
+
         # ★ 右クリック用コンテキストメニュー
         self.flow_list_menu = tk.Menu(self, tearoff=0)
         self.flow_list_menu.add_command(label="フローを実行", command=self._on_run_clicked)
         self.flow_list_menu.add_command(label="編集（フローエディタで開く）", command=self._on_edit_flow_from_list)
         self.flow_list_menu.add_separator()
         self.flow_list_menu.add_command(label="削除", command=self._on_delete_flow)
+        self.flow_list_menu.add_command(label="削除したフローを復元...", command=self._open_trash_manager)
         self.flow_list_menu.add_separator()
         self.flow_list_menu.add_command(label="名前変更...", command=self._on_rename_flow)
         self.flow_list_menu.add_command(label="複製して新規フローを作成", command=self._on_duplicate_flow)
@@ -1334,15 +2212,30 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         # ★ 右クリックでコンテキストメニューを表示
         self.flows_listbox.bind("<Button-3>", self._on_flows_listbox_right_click)
 
-        delete_btn = ttk.Button(left_frame, text="選択フロー削除", command=self._on_delete_flow)
-        delete_btn.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+        # ★ Deleteキーでフロー削除
+        self.flows_listbox.bind("<Delete>", lambda e: self._on_delete_flow())
+        self.flows_listbox.bind("<BackSpace>", lambda e: self._on_delete_flow())
 
-        restore_btn = ttk.Button(left_frame, text="削除したフローを復元...", command=self._open_trash_manager)
-        restore_btn.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(4, 0))
-
-        # ★ おまけ：ボタンでも編集できるようにしておく
+        # ★ 編集ボタンだけ残す（削除・復元は右クリックに統一）
         edit_btn = ttk.Button(left_frame, text="選択フローを編集（エディタ）", command=self._on_edit_flow_from_list)
-        edit_btn.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+        edit_btn.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+
+        # フロー概要 / 工程プレビュー（フロー一覧や実行ログと同じノリのラベルにする）
+        detail_label = ttk.Label(
+            left_frame,
+            text="フロー概要 / 工程プレビュー",
+        )
+        detail_label.grid(row=3, column=0, sticky="w", pady=(6, 0))
+
+        self.flow_detail_text = tk.Text(
+            left_frame,
+            height=5,      # 高さを3→5行に拡大
+            wrap="word",
+            state="disabled",
+            # relief / border はデフォルトのままにして、
+            # フロー一覧の Listbox や 実行ログの Text と同じ枠にする
+        )
+        self.flow_detail_text.grid(row=4, column=0, columnspan=2, sticky="nsew", pady=(2, 0))
 
         # --------------------------------------------------
         # 右側：ログエリア
@@ -1469,7 +2362,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
     def _create_flow_editor_tab(self, tab: ttk.Frame) -> None:
         tab.columnconfigure(0, weight=1)
-        tab.rowconfigure(2, weight=1)
+        tab.rowconfigure(1, weight=1)  # ステップ一覧が伸縮するように
 
         top_frame = ttk.Frame(tab)
         top_frame.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
@@ -1491,26 +2384,58 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         on_error_combo.grid(row=1, column=1, sticky="w", padx=4, pady=2)
         on_error_combo.set("stop")
 
+        ttk.Label(top_frame, text="説明（任意）").grid(row=2, column=0, sticky="e", padx=4, pady=2)
+        ttk.Entry(top_frame, textvariable=self.edit_flow_description_var).grid(
+            row=2, column=1, sticky="ew", padx=4, pady=2
+        )
+
         middle_frame = ttk.LabelFrame(tab, text="ステップ一覧")
         middle_frame.grid(row=1, column=0, sticky="nsew", padx=8, pady=4)
         middle_frame.columnconfigure(0, weight=1)
         middle_frame.rowconfigure(0, weight=1)
 
-        self.edit_steps_list = tk.Listbox(middle_frame, height=10)
+        # ★ Canvas版ドラッグ&ドロップ対応ステップリスト
+        self.edit_steps_list = DraggableStepList(middle_frame, dark_mode=self._dark_mode)
         self.edit_steps_list.grid(row=0, column=0, sticky="nsew", padx=(4, 0), pady=4)
 
-        steps_scroll = ttk.Scrollbar(middle_frame, orient="vertical", command=self.edit_steps_list.yview)
-        steps_scroll.grid(row=0, column=1, sticky="ns", pady=4)
-        self.edit_steps_list.config(yscrollcommand=steps_scroll.set)
+        # ★ ダブルクリックでステップ編集
+        self.edit_steps_list.set_on_double_click(lambda idx: self._editor_edit_step())
+
+        # ★ 右クリックでコンテキストメニュー表示
+        def _show_step_context(event, index):
+            self.step_context_menu.tk_popup(event.x_root, event.y_root)
+        self.edit_steps_list.set_on_right_click(_show_step_context)
+
+        # ★ 並び替え時のコールバック
+        def _on_reorder(from_idx, to_idx):
+            if from_idx < len(self.edit_steps) and to_idx <= len(self.edit_steps):
+                step = self.edit_steps.pop(from_idx)
+                self.edit_steps.insert(to_idx, step)
+        self.edit_steps_list.set_on_reorder(_on_reorder)
+
+        # ★ ステップ用の右クリックメニュー
+        self.step_context_menu = tk.Menu(self, tearoff=0)
+        self.step_context_menu.add_command(label="編集", command=self._editor_edit_step)
+        self.step_context_menu.add_command(label="複製", command=self._editor_duplicate_step)
+        self.step_context_menu.add_command(label="削除", command=self._editor_delete_step)
+        self.step_context_menu.add_separator()
+        self.step_context_menu.add_command(label="上へ移動", command=lambda: self._editor_move_step(-1))
+        self.step_context_menu.add_command(label="下へ移動", command=lambda: self._editor_move_step(1))
+
+        # スクロールバーはDraggableStepList内部で管理するので不要
+        # steps_scroll = ttk.Scrollbar(...)
 
         btn_frame_steps = ttk.Frame(middle_frame)
-        btn_frame_steps.grid(row=0, column=2, sticky="ns", padx=4, pady=4)
+        btn_frame_steps.grid(row=0, column=1, sticky="ns", padx=4, pady=4)
 
         ttk.Button(btn_frame_steps, text="ステップを追加", command=self._editor_add_step).grid(row=0, column=0, pady=2)
         ttk.Button(btn_frame_steps, text="選択したステップを編集", command=self._editor_edit_step).grid(row=1, column=0, pady=2)
-        ttk.Button(btn_frame_steps, text="選択したステップを削除", command=self._editor_delete_step).grid(row=2, column=0, pady=2)
-        ttk.Button(btn_frame_steps, text="上へ移動", command=lambda: self._editor_move_step(-1)).grid(row=3, column=0, pady=2)
-        ttk.Button(btn_frame_steps, text="下へ移動", command=lambda: self._editor_move_step(1)).grid(row=4, column=0, pady=2)
+        ttk.Button(btn_frame_steps, text="選択したステップを複製", command=self._editor_duplicate_step).grid(row=2, column=0, pady=2)
+        ttk.Button(btn_frame_steps, text="選択したステップを削除", command=self._editor_delete_step).grid(row=3, column=0, pady=2)
+        ttk.Button(btn_frame_steps, text="上へ移動", command=lambda: self._editor_move_step(-1)).grid(row=4, column=0, pady=2)
+        ttk.Button(btn_frame_steps, text="下へ移動", command=lambda: self._editor_move_step(1)).grid(row=5, column=0, pady=2)
+        ttk.Separator(btn_frame_steps, orient="horizontal").grid(row=6, column=0, sticky="ew", pady=6)
+        ttk.Button(btn_frame_steps, text="座標キャプチャ", command=self._open_coord_capture).grid(row=7, column=0, pady=2)
 
         bottom_frame = ttk.Frame(tab)
         bottom_frame.grid(row=3, column=0, sticky="ew", padx=8, pady=(4, 8))
@@ -1535,13 +2460,15 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         )
 
         # ★ 今開いているフローを実行
-        ttk.Button(bottom_frame, text="このフローを実行", command=self._editor_run_flow).grid(
-            row=0, column=3, sticky="w", padx=4
-        )
+        self.editor_run_button = ttk.Button(bottom_frame, text="このフローを実行", command=self._editor_run_flow)
+        self.editor_run_button.grid(row=0, column=3, sticky="w", padx=4)
 
         ttk.Label(bottom_frame, text="※ flows フォルダに YAML として保存されます").grid(
             row=1, column=0, columnspan=4, sticky="w", padx=4, pady=(2, 0)
         )
+
+        # ★ 初回起動時にプレースホルダーを表示
+        self._refresh_edit_steps_list()
 
     def _load_flows_list(self) -> None:
         self.flows_listbox.delete(0, tk.END)
@@ -1551,6 +2478,8 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
         yaml_files = sorted(FLOWS_DIR.glob("*.yaml"))
         for p in yaml_files:
+            description = ""
+            steps_raw: List[Dict[str, Any]] = []
             try:
                 with p.open("r", encoding="utf-8") as f:
                     data = yaml.safe_load(f) or {}
@@ -1558,23 +2487,37 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
                     raise ValueError("root is not mapping")
                 name = data.get("name") or p.stem
                 enabled = data.get("enabled", True)
+                description = data.get("description") or ""
+                steps_raw = data.get("steps") or []
             except Exception:
                 name = p.stem
                 enabled = True
+                description = ""
+                steps_raw = []
 
             self._flow_entries.append(
                 {
                     "name": name,
                     "file": p,
                     "enabled": enabled,
+                    "description": description,
+                    "steps": steps_raw,
                 }
             )
+
             # 表示はフロー名だけにする（ファイル名 *.yaml は隠す）
             flow_name = name if enabled else f"[無効] {name}"
             self.flows_listbox.insert(tk.END, flow_name)
 
         self._append_log(f"[INFO] フロー一覧を読み込みました ({len(self._flow_entries)} 件)")
         self.status_label.config(text="フロー一覧を更新しました")
+        
+        # 先頭のフローがあれば、その詳細を表示
+        if self._flow_entries:
+            self.flows_listbox.selection_clear(0, tk.END)
+            self.flows_listbox.selection_set(0)
+            self._on_flow_selection_changed()
+
 
     def _append_log(self, message: str) -> None:
         """
@@ -1604,6 +2547,67 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
     def _on_flow_double_click(self, event) -> None:
         self._on_run_clicked()
 
+    def _on_flow_selection_changed(self, event=None) -> None:
+        """フロー一覧の選択が変わったとき、説明と工程プレビューを更新する。"""
+        selection = self.flows_listbox.curselection()
+        if not selection:
+            self.flow_detail_var.set("")
+            if self.flow_detail_text is not None:
+                self.flow_detail_text.configure(state="normal")
+                self.flow_detail_text.delete("1.0", tk.END)
+                self.flow_detail_text.configure(state="disabled")
+            return
+
+        idx = selection[0]
+        if idx >= len(self._flow_entries):
+            self.flow_detail_var.set("")
+            if self.flow_detail_text is not None:
+                self.flow_detail_text.configure(state="normal")
+                self.flow_detail_text.delete("1.0", tk.END)
+                self.flow_detail_text.configure(state="disabled")
+            return
+
+        entry = self._flow_entries[idx]
+        description: str = entry.get("description") or ""
+        steps = entry.get("steps") or []
+
+        # 工程プレビュー（アクション名の簡易列挙）
+        actions: list[str] = []
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            action_id = step.get("action")
+            if not action_id:
+                continue
+            # MainWindow 側で持っている ID → 日本語ラベルの表を使う
+            label = self._action_id_to_label.get(str(action_id), str(action_id))
+            actions.append(label)
+
+        preview = ""
+        if actions:
+            # 長すぎるとウザいので先頭数件だけ表示
+            preview = " → ".join(actions[:6])
+            if len(actions) > 6:
+                preview += " → …"
+
+        parts: list[str] = []
+        if description:
+            parts.append(description)
+        if preview:
+            parts.append(f"[工程] {preview}")
+
+        text = "\n".join(parts)
+
+        if self.flow_detail_text is not None:
+            self.flow_detail_text.configure(state="normal")
+            self.flow_detail_text.delete("1.0", tk.END)
+            if text:
+                self.flow_detail_text.insert("1.0", text)
+            self.flow_detail_text.configure(state="disabled")
+        else:
+            # 万一 Text がまだ無い場合の保険（古い UI でも落ちないように）
+            self.flow_detail_var.set(text)
+
     def _on_edit_flow_from_list(self) -> None:
         """フロー一覧で選択中のフローを、フローエディタタブで開く。"""
         selection = self.flows_listbox.curselection()
@@ -1632,6 +2636,16 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         except Exception:
             pass
 
+    def _on_stop_clicked(self) -> None:
+        """中断ボタンが押されたとき。"""
+        if not self._running_thread or not self._running_thread.is_alive():
+            return
+
+        self._stop_event.set()
+        self._append_log("[INFO] 中断リクエストを送信しました（次のステップ終了時に停止します）")
+        self.status_label.config(text="中断リクエスト中...")
+        self.stop_button.config(state="disabled", text="中断中...")
+
     def _on_run_clicked(self) -> None:
         if self._running_thread and self._running_thread.is_alive():
             messagebox.showinfo("実行中", "現在フロー実行中です。完了をお待ちください。")
@@ -1658,8 +2672,13 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         self.status_label.config(text=f"フロー実行中: {flow_name}")
         self._append_log(f"[RUN] {flow_name} ({flow_path.name})")
 
-        self.run_button.config(state="disabled")
+        # ★ 実行中の視覚フィードバック
+        self.run_button.config(state="disabled", text="⏳ 実行中...")
+        self.stop_button.config(state="normal")  # ★ 中断ボタン有効化
         self.reload_button.config(state="disabled")
+
+        # ★ 中断フラグをリセット
+        self._stop_event.clear()
 
         t = threading.Thread(
             target=self._run_flow_thread,
@@ -1679,44 +2698,18 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         if index < 0:
             return
 
-        # その行を選択状態にする
-        self.flows_listbox.selection_clear(0, tk.END)
-        self.flows_listbox.selection_set(index)
+        # ★ 既に選択されている項目の上で右クリックした場合は選択を維持
+        #    そうでなければ、クリックした項目だけを選択
+        current_selection = self.flows_listbox.curselection()
+        if index not in current_selection:
+            self.flows_listbox.selection_clear(0, tk.END)
+            self.flows_listbox.selection_set(index)
         self.flows_listbox.activate(index)
 
         try:
             self.flow_list_menu.tk_popup(event.x_root, event.y_root)
         finally:
             self.flow_list_menu.grab_release()
-
-    def _on_edit_flow_from_list(self) -> None:
-        """フロー一覧で選択中のフローを、エディタタブで編集する。"""
-        selection = self.flows_listbox.curselection()
-        if not selection:
-            messagebox.showwarning("フロー未選択", "編集するフローを一覧から選択してください。")
-            return
-
-        idx = selection[0]
-        if idx >= len(self._flow_entries):
-            messagebox.showerror("エラー", "内部データと表示がずれています。")
-            return
-
-        entry = self._flow_entries[idx]
-        flow_path: Path = entry["file"]
-
-        if not flow_path.exists():
-            messagebox.showerror("ファイルなし", f"フローファイルが見つかりません: {flow_path}")
-            return
-
-        # 実際の読み込みロジックに委譲
-        self._editor_load_from_path(flow_path)
-
-        # エディタタブに切り替え
-        try:
-            self.notebook.select(self.editor_tab)
-        except Exception:
-            # notebook がまだ無いとかは普通起きないけど、一応握りつぶす
-            pass
 
     def _on_rename_flow(self) -> None:
         """選択中のフローの name とファイル名をまとめて変更する。"""
@@ -1879,18 +2872,45 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         self.status_label.config(text=f"フローを複製しました: {new_name}")
 
     def _run_flow_thread(self, flow_path: Path, flow_name: str) -> None:
+        success = True
+        error_msg = ""
+        stopped = False
         try:
             flow_def = load_flow(flow_path)
+            # ★ 中断フラグをエンジンに渡す
+            self.engine.stop_event = self._stop_event
             self.engine.run_flow(flow_def)
+        except FlowStoppedException:
+            # ★ ユーザーによる中断
+            stopped = True
         except Exception as exc:
-            self._append_log(f"[ERROR] フロー実行中にエラーが発生しました: {exc}")
-            self.status_label.config(text=f"フロー実行エラー: {flow_name}")
-        else:
+            success = False
+            error_msg = str(exc)
+        finally:
+            # ★ メインスレッドにUI更新を投げる（スレッドセーフ）
+            self.after(0, lambda: self._on_flow_finished(flow_name, success, error_msg, stopped))
+
+    def _on_flow_finished(self, flow_name: str, success: bool, error_msg: str, stopped: bool = False) -> None:
+        """フロー実行完了後のUI更新（メインスレッドで実行される）。"""
+        # ★ 中断された場合
+        if stopped:
+            self._append_log(f"[STOP] フロー実行を中断しました: {flow_name}")
+            self.status_label.config(text=f"フロー実行を中断しました: {flow_name}")
+        elif success:
             self._append_log(f"[DONE] フロー実行完了: {flow_name}")
             self.status_label.config(text=f"フロー実行完了: {flow_name}")
-        finally:
-            self.run_button.config(state="normal")
-            self.reload_button.config(state="normal")
+        else:
+            self._append_log(f"[ERROR] フロー実行中にエラーが発生しました: {error_msg}")
+            self.status_label.config(text=f"フロー実行エラー: {flow_name}")
+
+        # ボタンを元に戻す
+        self.run_button.config(state="normal", text="▶ フローを実行")
+        self.stop_button.config(state="disabled", text="■ 中断")  # ★ 中断ボタン無効化&テキスト戻す
+        self.reload_button.config(state="normal")
+        try:
+            self.editor_run_button.config(state="normal", text="このフローを実行")
+        except Exception:
+            pass
 
     def _on_delete_flow(self) -> None:
         selection = self.flows_listbox.curselection()
@@ -1898,45 +2918,56 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             messagebox.showinfo("フロー未選択", "削除するフローを一覧から選択してください。")
             return
 
-        idx = selection[0]
-        if idx >= len(self._flow_entries):
+        # 複数選択対応
+        entries_to_delete = []
+        for idx in selection:
+            if idx < len(self._flow_entries):
+                entries_to_delete.append(self._flow_entries[idx])
+
+        if not entries_to_delete:
             messagebox.showerror("エラー", "内部データと表示がずれています。")
             return
 
-        entry = self._flow_entries[idx]
-        flow_name = entry["name"]
-        flow_path: Path = entry["file"]
+        # 確認メッセージ
+        if len(entries_to_delete) == 1:
+            flow_name = entries_to_delete[0]["name"]
+            confirm_msg = f"フロー '{flow_name}' を削除しますか？\nファイルは AVANTIXRPA のゴミ箱 (.trash) に移動されます。"
+        else:
+            names = [e["name"] for e in entries_to_delete]
+            names_preview = "\n".join(f"  • {n}" for n in names[:5])
+            if len(names) > 5:
+                names_preview += f"\n  ...他 {len(names) - 5} 件"
+            confirm_msg = f"{len(entries_to_delete)} 件のフローを削除しますか？\n\n{names_preview}\n\nファイルは AVANTIXRPA のゴミ箱 (.trash) に移動されます。"
 
-        if not flow_path.exists():
-            messagebox.showerror("ファイルなし", f"フローファイルが見つかりません: {flow_path}")
+        if not messagebox.askyesno("削除確認", confirm_msg):
             return
 
-        if not messagebox.askyesno(
-            "削除確認",
-            f"フロー '{flow_name}' を削除しますか？\n"
-            f"ファイルは AVANTIXRPA のゴミ箱 (.trash) に移動されます。",
-        ):
-            return
+        # 削除実行
+        deleted_count = 0
+        for entry in entries_to_delete:
+            flow_name = entry["name"]
+            flow_path: Path = entry["file"]
 
-        try:
-            TRASH_DIR.mkdir(parents=True, exist_ok=True)
+            if not flow_path.exists():
+                continue
 
-            target = TRASH_DIR / flow_path.name
-            if target.exists():
-                from datetime import datetime
+            try:
+                TRASH_DIR.mkdir(parents=True, exist_ok=True)
 
-                stem = flow_path.stem
-                suffix = flow_path.suffix
-                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                target = TRASH_DIR / f"{stem}_{ts}{suffix}"
+                target = TRASH_DIR / flow_path.name
+                if target.exists():
+                    stem = flow_path.stem
+                    suffix = flow_path.suffix
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    target = TRASH_DIR / f"{stem}_{ts}{suffix}"
 
-            shutil.move(str(flow_path), str(target))
-        except OSError as exc:
-            messagebox.showerror("削除失敗", f"フローファイルの移動に失敗しました。\n{exc}")
-            return
+                shutil.move(str(flow_path), str(target))
+                deleted_count += 1
+                self._append_log(f"[DELETE] フロー '{flow_name}' をゴミ箱に移動しました。 ({flow_path.name})")
+            except OSError as exc:
+                self._append_log(f"[ERROR] フロー '{flow_name}' の削除に失敗: {exc}")
 
-        self._append_log(f"[DELETE] フロー '{flow_name}' をゴミ箱に移動しました。 ({flow_path.name})")
-        self.status_label.config(text=f"フロー '{flow_name}' を削除しました。（ゴミ箱に移動）")
+        self.status_label.config(text=f"{deleted_count} 件のフローを削除しました。（ゴミ箱に移動）")
         self._load_flows_list()
 
     def _open_trash_manager(self) -> None:
@@ -1944,6 +2975,130 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             messagebox.showinfo("ゴミ箱なし", "削除されたフローはまだありません。")
             return
         TrashManager(self, TRASH_DIR, FLOWS_DIR, on_restored=self._load_flows_list)
+
+    def _on_export_data(self) -> None:
+        """flows/*.yaml と resources.json を ZIP にエクスポートする。"""
+        default_name = datetime.now().strftime("avantixrpa_export_%Y%m%d_%H%M%S.zip")
+        path = filedialog.asksaveasfilename(
+            title="フローとリソースをエクスポート",
+            defaultextension=".zip",
+            filetypes=[("ZIP ファイル", "*.zip")],
+            initialfile=default_name,
+        )
+        if not path:
+            return
+
+        zip_path = Path(path)
+        try:
+            FLOWS_DIR.mkdir(parents=True, exist_ok=True)
+
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                # flows/*.yaml （.trash は除外）
+                for flow_path in sorted(FLOWS_DIR.glob("*.yaml")):
+                    zf.write(flow_path, arcname=f"flows/{flow_path.name}")
+
+                # config/resources.json
+                if RESOURCES_FILE.exists():
+                    zf.write(RESOURCES_FILE, arcname="config/resources.json")
+
+            self.status_label.config(text=f"エクスポートしました: {zip_path.name}")
+            self._append_log(f"[INFO] エクスポート: {zip_path}")
+            messagebox.showinfo("エクスポート完了", f"フローとリソースをエクスポートしました:\n{zip_path}")
+        except Exception as e:
+            messagebox.showerror("エクスポート失敗", f"エクスポート中にエラーが発生しました:\n{e}")
+
+    def _on_import_data(self) -> None:
+        """ZIP から flows/*.yaml と config/resources.json をインポートする。"""
+        path = filedialog.askopenfilename(
+            title="フローとリソースをインポート",
+            filetypes=[("ZIP ファイル", "*.zip"), ("すべてのファイル", "*.*")],
+        )
+        if not path:
+            return
+
+        zip_path = Path(path)
+        if not zip_path.exists():
+            messagebox.showerror("ファイルなし", f"ZIP ファイルが見つかりません:\n{zip_path}")
+            return
+
+        try:
+            FLOWS_DIR.mkdir(parents=True, exist_ok=True)
+
+            imported_flows = 0
+
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                names = zf.namelist()
+
+                # --- flows/*.yaml をインポート ---
+                for name in names:
+                    if not name.endswith(".yaml"):
+                        continue
+                    # flows/xxx.yaml だけ対象（他のパスは無視）
+                    if not (name.startswith("flows/") or "/" not in name):
+                        continue
+
+                    src_name = name
+                    filename = Path(name).name
+                    target = FLOWS_DIR / filename
+
+                    # 既に同名がある場合は xxx_importN.yaml にリネーム
+                    if target.exists():
+                        base = target.stem
+                        suffix = target.suffix
+                        i = 1
+                        while True:
+                            candidate = FLOWS_DIR / f"{base}_import{i}{suffix}"
+                            if not candidate.exists():
+                                target = candidate
+                                break
+                            i += 1
+
+                    with zf.open(src_name) as src, target.open("wb") as dst:
+                        dst.write(src.read())
+                    imported_flows += 1
+
+                # --- resources.json をマージ ---
+                if "config/resources.json" in names:
+                    try:
+                        with zf.open("config/resources.json") as f:
+                            imported_res = json.load(f)
+                    except Exception:
+                        imported_res = None
+
+                    if imported_res is not None:
+                        RESOURCES_FILE.parent.mkdir(parents=True, exist_ok=True)
+                        if RESOURCES_FILE.exists():
+                            try:
+                                with RESOURCES_FILE.open("r", encoding="utf-8") as f:
+                                    current_res = json.load(f)
+                            except Exception:
+                                current_res = {}
+                        else:
+                            current_res = {}
+
+                        # 既存優先で、無いキーだけ追加するゆるいマージ
+                        def merge_dict(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
+                            for key, value in src.items():
+                                if isinstance(value, dict) and isinstance(dst.get(key), dict):
+                                    for k2, v2 in value.items():
+                                        if k2 not in dst[key]:
+                                            dst[key][k2] = v2
+                                else:
+                                    if key not in dst:
+                                        dst[key] = value
+
+                        if isinstance(current_res, dict) and isinstance(imported_res, dict):
+                            merge_dict(current_res, imported_res)
+                            with RESOURCES_FILE.open("w", encoding="utf-8") as f:
+                                json.dump(current_res, f, ensure_ascii=False, indent=2)
+
+            # フロー一覧を更新
+            self._load_flows_list()
+            self.status_label.config(text=f"インポートしました: {zip_path.name}")
+            self._append_log(f"[INFO] インポート: {zip_path} （{imported_flows} 件）")
+            messagebox.showinfo("インポート完了", f"{imported_flows} 件のフローをインポートしました。")
+        except Exception as e:
+            messagebox.showerror("インポート失敗", f"インポート中にエラーが発生しました:\n{e}")
 
     def _refresh_site_list(self) -> None:
         self.site_listbox.delete(0, tk.END)
@@ -2298,7 +3453,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
     def _editor_add_step(self) -> None:
         actions = list(BUILTIN_ACTIONS.keys())
-        dialog = StepEditor(self, actions, resources=self.resources)
+        dialog = StepEditor(self, actions, resources=self.resources, dark_mode=self._dark_mode)
         self.wait_window(dialog)
         result = dialog.get_result()
         if result is None:
@@ -2318,7 +3473,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             return
         current = self.edit_steps[idx]
         actions = list(BUILTIN_ACTIONS.keys())
-        dialog = StepEditor(self, actions, initial_step=current, resources=self.resources)
+        dialog = StepEditor(self, actions, initial_step=current, resources=self.resources, dark_mode=self._dark_mode)
         self.wait_window(dialog)
         result = dialog.get_result()
         if result is None:
@@ -2335,6 +3490,27 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             return
         del self.edit_steps[idx]
         self._refresh_edit_steps_list()
+
+    def _editor_duplicate_step(self) -> None:
+        """選択中のステップを複製して直下に挿入する。"""
+        sel = self.edit_steps_list.curselection()
+        if not sel:
+            messagebox.showinfo("ステップ未選択", "複製するステップを選択してください。")
+            return
+        idx = sel[0]
+        if idx < 0 or idx >= len(self.edit_steps):
+            return
+        
+        import copy
+        original = self.edit_steps[idx]
+        duplicated = copy.deepcopy(original)
+        
+        # 複製したステップを直下に挿入
+        self.edit_steps.insert(idx + 1, duplicated)
+        self._refresh_edit_steps_list()
+        
+        # 複製したステップを選択状態にする
+        self.edit_steps_list.selection_set(idx + 1)
 
     def _editor_move_step(self, direction: int) -> None:
         sel = self.edit_steps_list.curselection()
@@ -2363,55 +3539,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
         name = data.get("name", "") or ""
         on_error = data.get("on_error", "stop") or "stop"
-        steps_raw = data.get("steps") or []
-
-        if not isinstance(steps_raw, list):
-            messagebox.showerror("形式エラー", "steps が配列ではありません。このフローは編集できません。")
-            return
-
-        # 編集状態にセット
-        self.edit_flow_name_var.set(name)
-        self.edit_on_error_var.set(on_error)
-
-        self.edit_steps = []
-        for step in steps_raw:
-            if not isinstance(step, dict):
-                continue
-            action = step.get("action")
-            params = step.get("params") or {}
-            on_err = step.get("on_error")
-
-            step_data: Dict[str, Any] = {
-                "action": action,
-                "params": params,
-            }
-            if on_err is not None:
-                step_data["on_error"] = on_err
-
-            self.edit_steps.append(step_data)
-
-        self._refresh_edit_steps_list()
-
-        # 「今編集中のファイル」として記録
-        self.current_edit_flow_path = path
-
-        self.status_label.config(text=f"フローを読み込みました: {path.name}")
-
-    def _editor_load_from_path(self, path: Path) -> None:
-        """指定された YAML フローを読み込み、フローエディタに反映する。"""
-        try:
-            with path.open("r", encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-        except Exception as exc:
-            messagebox.showerror("読み込み失敗", f"フローの読み込みに失敗しました。\n{exc}")
-            return
-
-        if not isinstance(data, dict):
-            messagebox.showerror("形式エラー", "フローファイルの形式が不正です。")
-            return
-
-        name = data.get("name", "") or ""
-        on_error = data.get("on_error", "stop") or "stop"
+        description = data.get("description", "") or ""
         steps_raw = data.get("steps") or []
 
         if not isinstance(steps_raw, list):
@@ -2423,6 +3551,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
         self.edit_flow_name_var.set(name)
         self.edit_on_error_var.set(on_error)
+        self.edit_flow_description_var.set(description)
         self.edit_steps = steps
         self._refresh_edit_steps_list()
 
@@ -2435,23 +3564,6 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         """ステップ一覧の表示を、人間が読める日本語ベースに整える。"""
         self.edit_steps_list.delete(0, tk.END)
 
-        # アクションID → 日本語ラベル
-        ACTION_LABELS = {
-            "print": "メッセージを表示する",
-            "wait": "指定秒数だけ待つ",
-            "browser.open": "ブラウザでURLを開く",
-            "resource.open_site": "登録済みサイトを開く",
-            "resource.open_file": "登録済みファイルを開く",
-            "run.program": "プログラムを起動する",
-            "ui.type": "文字を入力する",
-            "ui.hotkey": "キー操作を送る",
-            "ui.move": "マウスを座標へ移動する",
-            "ui.click": "マウスクリックする",
-            "ui.scroll": "画面をスクロールする",
-            "file.copy": "ファイルをコピーする",
-            "file.move": "ファイルを移動する",
-        }
-
         sites = (self.resources or {}).get("sites", {})
         files = (self.resources or {}).get("files", {})
 
@@ -2460,7 +3572,7 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             params = step.get("params") or {}
             on_error = step.get("on_error")
 
-            base_label = ACTION_LABELS.get(action, action)
+            base_label = self._action_id_to_label.get(action, action)
 
             # ざっくり内容の要約を作る
             summary = ""
@@ -2544,12 +3656,17 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
             self.edit_steps_list.insert(tk.END, text)
 
+        # ★ ステップが空の時はプレースホルダーを表示
+        if not self.edit_steps:
+            self.edit_steps_list.insert(tk.END, "（ステップがありません。「ステップを追加」で追加してください）")
+
     def _editor_new_flow(self) -> None:
         """フローエディタをリセットして、新規作成モードにする。"""
         self.edit_flow_name_var.set("")
+        self.edit_flow_description_var.set("")  # 説明もクリア
         self.edit_on_error_var.set("stop")
         self.edit_steps.clear()
-        self.edit_steps_list.delete(0, tk.END)
+        self._refresh_edit_steps_list()  # プレースホルダー表示のため
         self.current_edit_flow_path = None
         self.status_label.config(text="新しいフローの作成を開始しました")
 
@@ -2664,10 +3781,12 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
 
         name = data.get("name") or ""
         on_error = data.get("on_error") or "stop"
+        description = data.get("description") or ""
         steps_raw = data.get("steps") or []
 
         self.edit_flow_name_var.set(name)
         self.edit_on_error_var.set(on_error)
+        self.edit_flow_description_var.set(description)
 
         self.edit_steps = []
         for step in steps_raw:
@@ -2700,12 +3819,15 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
             return
 
         on_error = self.edit_on_error_var.get().strip() or "stop"
+        description = self.edit_flow_description_var.get().strip()
 
         data = {
             "name": name,
             "on_error": on_error,
             "steps": self.edit_steps,
         }
+        if description:
+            data["description"] = description
 
         FLOWS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -2779,10 +3901,15 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         self.status_label.config(text=f"フロー実行中: {flow_name}")
         self._append_log(f"[RUN] {flow_name} ({flow_path.name})")
 
-        # 実行中はメイン画面側の実行ボタンをロック
+        # ★ 中断フラグをリセット
+        self._stop_event.clear()
+
+        # ★ 実行中はボタンをロック＆フィードバック表示
         try:
-            self.run_button.config(state="disabled")
+            self.run_button.config(state="disabled", text="⏳ 実行中...")
+            self.stop_button.config(state="normal")  # ★ 中断ボタン有効化
             self.reload_button.config(state="disabled")
+            self.editor_run_button.config(state="disabled", text="⏳ 実行中...")
         except Exception:
             # 念のため。エディタからだけ使うケースとかでも落ちないように。
             pass
@@ -2797,13 +3924,13 @@ class MainWindow(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
         t.start()
 
     def _open_coord_capture(self) -> None:
-        CoordinateCapture(self)
+        CoordinateCapture(self, dark_mode=self._dark_mode)
 
     def _open_trash_manager(self) -> None:
         if not TRASH_DIR.exists():
             messagebox.showinfo("ゴミ箱なし", "削除されたフローはまだありません。")
             return
-        TrashManager(self, TRASH_DIR, FLOWS_DIR, on_restored=self._load_flows_list)
+        TrashManager(self, TRASH_DIR, FLOWS_DIR, on_restored=self._load_flows_list, dark_mode=self._dark_mode)
 
 
 class TrashManager(tk.Toplevel):
@@ -2815,6 +3942,7 @@ class TrashManager(tk.Toplevel):
         trash_dir: Path,
         flows_dir: Path,
         on_restored: Optional[callable] = None,
+        dark_mode: bool = False,
     ) -> None:
         super().__init__(master)
         self.title("削除したフローの管理")
@@ -2823,6 +3951,18 @@ class TrashManager(tk.Toplevel):
         self.trash_dir = trash_dir
         self.flows_dir = flows_dir
         self.on_restored = on_restored
+        self._dark_mode = dark_mode
+
+        # ★ ダークモード対応
+        if dark_mode:
+            self._bg = "#505050"
+            self._fg = "#f0f0f0"
+            self._panel_bg = "#606060"
+        else:
+            self._bg = "#e1e1e1"
+            self._fg = "#000000"
+            self._panel_bg = "#ffffff"
+        self.configure(bg=self._bg)
 
         self._files: list[Path] = []
 
@@ -2836,27 +3976,27 @@ class TrashManager(tk.Toplevel):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
-        ttk.Label(self, text="ゴミ箱にあるフロー（.trash）").grid(
+        ttk.Label(self, text="ゴミ箱にあるフロー（.trash）", style="Dialog.TLabel").grid(
             row=0, column=0, sticky="w", padx=8, pady=(8, 4)
         )
 
-        frame = ttk.Frame(self)
+        frame = ttk.Frame(self, style="Dialog.TFrame")
         frame.grid(row=1, column=0, sticky="nsew", padx=8)
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
 
-        self.listbox = tk.Listbox(frame, height=12, width=60)
+        self.listbox = tk.Listbox(frame, height=12, width=60, bg=self._panel_bg, fg=self._fg, selectbackground="#0078d7")
         self.listbox.grid(row=0, column=0, sticky="nsew")
 
         scroll = ttk.Scrollbar(frame, orient="vertical", command=self.listbox.yview)
         scroll.grid(row=0, column=1, sticky="ns")
         self.listbox.config(yscrollcommand=scroll.set)
 
-        btn_frame = ttk.Frame(self)
+        btn_frame = ttk.Frame(self, style="Dialog.TFrame")
         btn_frame.grid(row=2, column=0, sticky="e", padx=8, pady=(4, 8))
-        ttk.Button(btn_frame, text="復元", command=self._restore_selected).grid(row=0, column=0, padx=4)
-        ttk.Button(btn_frame, text="完全に削除", command=self._delete_selected).grid(row=0, column=1, padx=4)
-        ttk.Button(btn_frame, text="閉じる", command=self.destroy).grid(row=0, column=2, padx=4)
+        ttk.Button(btn_frame, text="復元", command=self._restore_selected, style="Dialog.TButton").grid(row=0, column=0, padx=4)
+        ttk.Button(btn_frame, text="完全に削除", command=self._delete_selected, style="Dialog.TButton").grid(row=0, column=1, padx=4)
+        ttk.Button(btn_frame, text="閉じる", command=self.destroy, style="Dialog.TButton").grid(row=0, column=2, padx=4)
 
     def _load_trash_list(self) -> None:
         self.listbox.delete(0, tk.END)

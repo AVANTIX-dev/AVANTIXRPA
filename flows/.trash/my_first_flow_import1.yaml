@@ -1,0 +1,24 @@
+name: AVANTIXRPA - Notepad test flow
+steps:
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "これからメモ帳を起動するテストを開始します。"
+
+  - action: run.program
+    params:
+      command: "notepad.exe"
+
+  - action: wait
+    params:
+      seconds: 2
+
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "2秒待ちました。メモ帳が起動しているはずです。"
+
+  - action: print
+    params:
+      prefix: "[AVANTIXRPA]"
+      message: "フロー終了。"

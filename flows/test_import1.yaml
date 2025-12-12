@@ -1,4 +1,4 @@
-name: ぱいせえええええええええん
+name: test
 on_error: stop
 steps:
 - action: resource.open_site
@@ -7,17 +7,16 @@ steps:
   on_error: stop
 - action: ui.move
   params:
-    x: 658
-    y: 935
-    duration: 2.0
+    x: 687
+    y: 942
+    duration: 0.3
   on_error: stop
 - action: wait
   params:
-    seconds: 2.0
+    seconds: 3.0
   on_error: stop
 - action: ui.click
   params:
     button: left
     clicks: 1
   on_error: stop
-description: ぱいせんのユーチューブチャンネルを開く

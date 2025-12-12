@@ -1,0 +1,6 @@
+name: aaa
+on_error: stop
+steps:
+- action: resource.open_site
+  params:
+    key: paisen_channel
